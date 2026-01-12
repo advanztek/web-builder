@@ -43,7 +43,7 @@ export default function LoginPage() {
                     sx={{
                         height: '100vh',
                         flex: '0 0 60%',
-                        backgroundImage: `url('/Illus/Illus_1.png')`,
+                        backgroundImage: `url('/Images/auth2.png')`,
                         backgroundSize: 'cover',
                         backgroundPosition: 'center',
                         display: 'flex',
@@ -117,25 +117,6 @@ export default function LoginPage() {
                                     placeholder="E.g. user@gmail.com"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    sx={{
-                                        '& .MuiOutlinedInput-root': {
-                                            backgroundColor:
-                                                theme.palette.mode === 'dark'
-                                                    ? 'rgba(150, 140, 170, 0.3)'
-                                                    : 'rgba(0, 0, 0, 0.05)',
-                                            borderRadius: '12px',
-                                            '& fieldset': { borderColor: 'transparent' },
-                                            '&.Mui-focused fieldset': {
-                                                borderColor: theme.palette.primary.main,
-                                            },
-                                        },
-                                        '& input': {
-                                            color: theme.palette.text.primary,
-                                            '&::placeholder': {
-                                                color: theme.palette.text.disabled,
-                                            },
-                                        },
-                                    }}
                                 />
                             </Box>
 
@@ -156,25 +137,6 @@ export default function LoginPage() {
                                     placeholder="Enter your password"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    sx={{
-                                        '& .MuiOutlinedInput-root': {
-                                            backgroundColor:
-                                                theme.palette.mode === 'dark'
-                                                    ? 'rgba(150, 140, 170, 0.3)'
-                                                    : 'rgba(0, 0, 0, 0.05)',
-                                            borderRadius: '12px',
-                                            '& fieldset': { borderColor: 'transparent' },
-                                            '&.Mui-focused fieldset': {
-                                                borderColor: theme.palette.primary.main,
-                                            },
-                                        },
-                                        '& input': {
-                                            color: theme.palette.text.primary,
-                                            '&::placeholder': {
-                                                color: theme.palette.text.disabled,
-                                            },
-                                        },
-                                    }}
                                 />
                             </Box>
 
@@ -204,7 +166,7 @@ export default function LoginPage() {
                                 fullWidth
                                 variant="contained"
                                 sx={{
-                                    backgroundColor: theme.palette.primary.main,
+                                    backgroundColor: theme.palette.primary.dark,
                                     color: theme.palette.primary.contrastText,
                                     textTransform: 'none',
                                     fontSize: '1rem',
@@ -212,7 +174,7 @@ export default function LoginPage() {
                                     padding: '14px',
                                     borderRadius: '12px',
                                     '&:hover': {
-                                        backgroundColor: theme.palette.primary.dark,
+                                        backgroundColor: theme.palette.primary.main,
                                     },
                                 }}
                             >

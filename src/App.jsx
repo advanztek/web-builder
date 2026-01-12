@@ -4,13 +4,17 @@ import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import Router from './Routes';
 import { ThemeProvider } from "./Context";
+import { Provider } from "react-redux";
+import {store} from "./Store";
 
 function App() {
   return (
     <ThemeProvider>
-      <BrowserRouter>
-        <Router />
-      </BrowserRouter>
+      <Provider store={store}>
+        <BrowserRouter>
+          <Router />
+        </BrowserRouter>
+      </Provider>
     </ThemeProvider>
   )
 }

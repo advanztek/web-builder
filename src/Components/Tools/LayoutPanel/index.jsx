@@ -1,272 +1,323 @@
-import React from 'react';
-import { Box, Typography, IconButton, FormControl, Select, MenuItem, TextField } from '@mui/material';
+import React, { useState } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import {
-    FormatBold,
-    FormatItalic,
-    FormatUnderlined,
-    FormatAlignLeft,
-    FormatAlignCenter,
-    FormatAlignRight,
-    FormatAlignJustify,
-    GridOn,
-    ViewColumn,
-    TableRows,
+  Box,
+  Typography,
+  IconButton,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemText,
+  TextField,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Tooltip,
+  Menu,
+  MenuItem
+} from '@mui/material';
+import {
+  Dashboard,
+  Add,
+  MoreVert,
+  Delete,
+  Edit,
+  Home as HomeIcon
 } from '@mui/icons-material';
+import { addPage, setActivePage, deletePage, updatePageName } from '../../../Store/slices/projectsSlice';
 
-const LayoutPanel = ({
-    selectedSection,
-    setSelectedSection,
-    fontFamily,
-    setFontFamily,
-    fontWeight,
-    setFontWeight,
-    fontSize,
-    setFontSize,
-    color,
-    setColor,
-    alignment,
-    setAlignment
-}) => {
-    const layoutComponents = [
-        { icon: <Box sx={{ width: 40, height: 30, bgcolor: '#3a4559', borderRadius: 1 }} />, label: 'Section' },
-        { icon: <Box sx={{ width: 40, height: 30, border: '2px dashed #64748b', borderRadius: 1 }} />, label: 'Container' },
-        { icon: <GridOn sx={{ fontSize: 30, color: '#fff' }} />, label: 'Grid' },
-        { icon: <ViewColumn sx={{ fontSize: 30, color: '#fff' }} />, label: 'Columns' },
-        { icon: <TableRows sx={{ fontSize: 30, color: '#fff' }} />, label: 'Lists' },
-    ];
+export const LayoutPanel = () => {
+  const dispatch = useDispatch();
+  const activeProjectId = useSelector(state => state.projects.activeProjectId);
+  const project = useSelector(state =>
+    activeProjectId ? state.projects.projects[activeProjectId] : null
+  );
 
-    return (
-        <Box sx={{
-            width: '340px',
-            bgcolor: '#141924',
-            overflowY: 'auto',
-            borderRight: '1px solid #1f2937'
-        }}>
-            {/* Layout Section */}
-            <Box sx={{ p: 2, borderBottom: '1px solid #1f2937' }}>
-                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, fontSize: '18px' }}>
-                    Layout
-                </Typography>
-                <Box sx={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(3, 1fr)',
-                    gap: 1.5
-                }}>
-                    {layoutComponents.map((item, idx) => (
-                        <Box
-                            key={idx}
-                            sx={{
-                                bgcolor: '#1f2937',
-                                borderRadius: 2,
-                                p: 2,
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                gap: 1,
-                                cursor: 'pointer',
-                                '&:hover': { bgcolor: '#2a3441' }
-                            }}
-                        >
-                            {item.icon}
-                            <Typography variant="caption" sx={{ color: '#94a3b8', fontSize: '11px' }}>
-                                {item.label}
-                            </Typography>
-                        </Box>
-                    ))}
-                </Box>
+  const [addPageDialog, setAddPageDialog] = useState(false);
+  const [editPageDialog, setEditPageDialog] = useState(false);
+  const [pageName, setPageName] = useState('');
+  const [selectedPageId, setSelectedPageId] = useState(null);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [menuPageId, setMenuPageId] = useState(null);
 
-                <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+  const handleAddPage = () => {
+    if (pageName.trim() && activeProjectId) {
+      dispatch(addPage({ projectId: activeProjectId, pageName: pageName.trim() }));
+      setPageName('');
+      setAddPageDialog(false);
+    }
+  };
+
+  const handlePageClick = (pageId) => {
+    if (activeProjectId) {
+      dispatch(setActivePage({ projectId: activeProjectId, pageId }));
+    }
+  };
+
+  const handleMenuOpen = (event, pageId) => {
+    event.stopPropagation();
+    setAnchorEl(event.currentTarget);
+    setMenuPageId(pageId);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+    setMenuPageId(null);
+  };
+
+  const handleEditPage = () => {
+    const page = project?.pages[menuPageId];
+    if (page && !page.isHome) {
+      setPageName(page.name);
+      setSelectedPageId(menuPageId);
+      setEditPageDialog(true);
+      handleMenuClose();
+    }
+  };
+
+  const handleUpdatePageName = () => {
+    if (pageName.trim() && activeProjectId && selectedPageId) {
+      dispatch(updatePageName({
+        projectId: activeProjectId,
+        pageId: selectedPageId,
+        name: pageName.trim()
+      }));
+      setPageName('');
+      setSelectedPageId(null);
+      setEditPageDialog(false);
+    }
+  };
+
+  const handleDeletePage = () => {
+    if (activeProjectId && menuPageId) {
+      const page = project?.pages[menuPageId];
+      if (page && !page.isHome) {
+        dispatch(deletePage({ projectId: activeProjectId, pageId: menuPageId }));
+      }
+      handleMenuClose();
+    }
+  };
+
+  const pages = project?.pages ? Object.values(project.pages) : [];
+
+  return (
+    <Box
+      sx={{
+        width: 280,
+        bgcolor: '#141924',
+        borderRight: '1px solid #2a2a2a',
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        color: '#e0e0e0'
+      }}
+    >
+      {/* Header */}
+      <Box sx={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1,
+        p: 2,
+        borderBottom: '1px solid #2a2a2a'
+      }}>
+        <Dashboard sx={{ color: '#1976d2' }} />
+        <Typography variant="h6" fontWeight="600" sx={{ color: '#e0e0e0' }}>
+          Blocks
+        </Typography>
+      </Box>
+
+      {/* Pages Section */}
+      {activeProjectId && (
+        <Box sx={{ borderBottom: '1px solid #2a2a2a' }}>
+          <Box sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            p: 2,
+            bgcolor: '#0d0d0d'
+          }}>
+            <Typography
+              variant="subtitle2"
+              sx={{
+                fontWeight: 600,
+                color: '#b0b0b0',
+                textTransform: 'uppercase',
+                fontSize: '0.75rem',
+                letterSpacing: '0.5px'
+              }}
+            >
+              Pages
+            </Typography>
+            <Tooltip title="Add Page">
+              <IconButton
+                size="small"
+                onClick={() => setAddPageDialog(true)}
+                sx={{ color: '#1976d2' }}
+              >
+                <Add fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
+          <List sx={{ py: 0 }}>
+            {pages.map((page) => (
+              <ListItem
+                key={page.id}
+                disablePadding
+                secondaryAction={
+                  !page.isHome && (
                     <IconButton
-                        size="small"
-                        sx={{ bgcolor: '#1f2937', color: '#fff', '&:hover': { bgcolor: '#2a3441' } }}
+                      edge="end"
+                      size="small"
+                      onClick={(e) => handleMenuOpen(e, page.id)}
+                      sx={{ color: '#808080' }}
                     >
-                        <FormatBold />
+                      <MoreVert fontSize="small" />
                     </IconButton>
-                    <IconButton
-                        size="small"
-                        sx={{ bgcolor: '#1f2937', color: '#fff', '&:hover': { bgcolor: '#2a3441' } }}
-                    >
-                        <FormatItalic />
-                    </IconButton>
-                    <IconButton
-                        size="small"
-                        sx={{ bgcolor: '#1f2937', color: '#fff', '&:hover': { bgcolor: '#2a3441' } }}
-                    >
-                        <FormatUnderlined />
-                    </IconButton>
-                </Box>
-            </Box>
-
-            {/* Selector Section */}
-            <Box sx={{ p: 2, borderBottom: '1px solid #1f2937' }}>
-                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, fontSize: '18px' }}>
-                    Selector
-                </Typography>
-                <FormControl fullWidth sx={{ mb: 2 }}>
-                    <Select
-                        value={selectedSection}
-                        onChange={(e) => setSelectedSection(e.target.value)}
-                        sx={{
-                            bgcolor: '#1f2937',
-                            color: '#fff',
-                            '.MuiOutlinedInput-notchedOutline': { borderColor: '#374151' },
-                            '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#4b5563' },
-                        }}
-                    >
-                        <MenuItem value="Hero Section">Hero Section</MenuItem>
-                        <MenuItem value="Header">Header</MenuItem>
-                        <MenuItem value="Footer">Footer</MenuItem>
-                    </Select>
-                </FormControl>
-                <FormControl fullWidth>
-                    <Select
-                        value={selectedSection}
-                        onChange={(e) => setSelectedSection(e.target.value)}
-                        sx={{
-                            bgcolor: '#1f2937',
-                            color: '#fff',
-                            '.MuiOutlinedInput-notchedOutline': { borderColor: '#374151' },
-                            '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#4b5563' },
-                        }}
-                    >
-                        <MenuItem value="Hero Section">Hero Section</MenuItem>
-                    </Select>
-                </FormControl>
-            </Box>
-
-            {/* Typography Section */}
-            <Box sx={{ p: 2 }}>
-                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, fontSize: '18px' }}>
-                    Typography
-                </Typography>
-
-                <Typography variant="caption" sx={{ color: '#94a3b8', mb: 1, display: 'block' }}>
-                    Font Family
-                </Typography>
-                <FormControl fullWidth sx={{ mb: 2 }}>
-                    <Select
-                        value={fontFamily}
-                        onChange={(e) => setFontFamily(e.target.value)}
-                        sx={{
-                            bgcolor: '#1f2937',
-                            color: '#fff',
-                            '.MuiOutlinedInput-notchedOutline': { borderColor: '#374151' },
-                        }}
-                    >
-                        <MenuItem value="Hero Section">Hero Section</MenuItem>
-                        <MenuItem value="Arial">Arial</MenuItem>
-                        <MenuItem value="Helvetica">Helvetica</MenuItem>
-                    </Select>
-                </FormControl>
-
-                <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                    <Box sx={{ flex: 1 }}>
-                        <Typography variant="caption" sx={{ color: '#94a3b8', mb: 1, display: 'block' }}>
-                            Weight
-                        </Typography>
-                        <FormControl fullWidth>
-                            <Select
-                                value={fontWeight}
-                                onChange={(e) => setFontWeight(e.target.value)}
-                                sx={{
-                                    bgcolor: '#1f2937',
-                                    color: '#fff',
-                                    '.MuiOutlinedInput-notchedOutline': { borderColor: '#374151' },
-                                }}
-                            >
-                                <MenuItem value="Semi-Bold">Semi-Bold</MenuItem>
-                                <MenuItem value="Bold">Bold</MenuItem>
-                                <MenuItem value="Regular">Regular</MenuItem>
-                            </Select>
-                        </FormControl>
-                    </Box>
-                    <Box sx={{ flex: 1 }}>
-                        <Typography variant="caption" sx={{ color: '#94a3b8', mb: 1, display: 'block' }}>
-                            Size
-                        </Typography>
-                        <FormControl fullWidth>
-                            <Select
-                                value={fontSize}
-                                onChange={(e) => setFontSize(e.target.value)}
-                                sx={{
-                                    bgcolor: '#1f2937',
-                                    color: '#fff',
-                                    '.MuiOutlinedInput-notchedOutline': { borderColor: '#374151' },
-                                }}
-                            >
-                                <MenuItem value="60px">60px</MenuItem>
-                                <MenuItem value="48px">48px</MenuItem>
-                                <MenuItem value="36px">36px</MenuItem>
-                            </Select>
-                        </FormControl>
-                    </Box>
-                </Box>
-
-                <Typography variant="caption" sx={{ color: '#94a3b8', mb: 1, display: 'block' }}>
-                    Color
-                </Typography>
-                <TextField
-                    fullWidth
-                    value={color}
-                    onChange={(e) => setColor(e.target.value)}
-                    sx={{
-                        mb: 2,
-                        '.MuiOutlinedInput-root': {
-                            bgcolor: '#1f2937',
-                            color: '#fff',
-                            '.MuiOutlinedInput-notchedOutline': { borderColor: '#374151' },
-                        }
+                  )
+                }
+              >
+                <ListItemButton
+                  selected={project.activePageId === page.id}
+                  onClick={() => handlePageClick(page.id)}
+                  sx={{
+                    '&.Mui-selected': {
+                      bgcolor: '#1976d2',
+                      '&:hover': {
+                        bgcolor: '#1565c0'
+                      }
+                    },
+                    '&:hover': {
+                      bgcolor: '#2a2a2a'
+                    }
+                  }}
+                >
+                  {page.isHome && (
+                    <HomeIcon sx={{ mr: 1, fontSize: 18, color: '#1976d2' }} />
+                  )}
+                  <ListItemText
+                    primary={page.name}
+                    primaryTypographyProps={{
+                      fontSize: '0.875rem',
+                      fontWeight: project.activePageId === page.id ? 600 : 400
                     }}
-                />
-
-                <Typography variant="caption" sx={{ color: '#94a3b8', mb: 1, display: 'block' }}>
-                    Text Align
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                    <IconButton
-                        sx={{
-                            bgcolor: alignment === 'left' ? '#2563eb' : '#1f2937',
-                            color: '#fff',
-                            '&:hover': { bgcolor: alignment === 'left' ? '#1d4ed8' : '#2a3441' }
-                        }}
-                        onClick={() => setAlignment('left')}
-                    >
-                        <FormatAlignLeft />
-                    </IconButton>
-                    <IconButton
-                        sx={{
-                            bgcolor: alignment === 'center' ? '#2563eb' : '#1f2937',
-                            color: '#fff',
-                            '&:hover': { bgcolor: alignment === 'center' ? '#1d4ed8' : '#2a3441' }
-                        }}
-                        onClick={() => setAlignment('center')}
-                    >
-                        <FormatAlignCenter />
-                    </IconButton>
-                    <IconButton
-                        sx={{
-                            bgcolor: alignment === 'right' ? '#2563eb' : '#1f2937',
-                            color: '#fff',
-                            '&:hover': { bgcolor: alignment === 'right' ? '#1d4ed8' : '#2a3441' }
-                        }}
-                        onClick={() => setAlignment('right')}
-                    >
-                        <FormatAlignRight />
-                    </IconButton>
-                    <IconButton
-                        sx={{
-                            bgcolor: alignment === 'justify' ? '#2563eb' : '#1f2937',
-                            color: '#fff',
-                            '&:hover': { bgcolor: alignment === 'justify' ? '#1d4ed8' : '#2a3441' }
-                        }}
-                        onClick={() => setAlignment('justify')}
-                    >
-                        <FormatAlignJustify />
-                    </IconButton>
-                </Box>
-            </Box>
+                  />
+                </ListItemButton>
+              </ListItem>
+            ))}
+          </List>
         </Box>
-    );
-};
+      )}
 
-export default LayoutPanel;
+      {/* GrapeJS Blocks Container */}
+      <Box
+        id="gjs-blocks"
+        sx={{
+          flex: 1,
+          overflowY: 'auto',
+          p: 2,
+          '& .gjs-block-category': {
+            marginBottom: 2
+          },
+          '& .gjs-title': {
+            color: '#b0b0b0',
+            fontSize: '0.875rem',
+            fontWeight: 600,
+            marginBottom: 1,
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px'
+          }
+        }}
+      />
+
+      {/* Empty State */}
+      {!activeProjectId && (
+        <Box sx={{ p: 2, textAlign: 'center' }}>
+          <Typography variant="caption" sx={{ color: '#808080' }}>
+            Select or create a project to see available blocks
+          </Typography>
+        </Box>
+      )}
+
+      {/* Add Page Dialog */}
+      <Dialog open={addPageDialog} onClose={() => setAddPageDialog(false)}>
+        <DialogTitle>Add New Page</DialogTitle>
+        <DialogContent sx={{ width: 400, pt: 2 }}>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Page Name"
+            fullWidth
+            variant="outlined"
+            placeholder="e.g., About, Services, Contact"
+            value={pageName}
+            onChange={(e) => setPageName(e.target.value)}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                handleAddPage();
+              }
+            }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAddPageDialog(false)}>Cancel</Button>
+          <Button
+            onClick={handleAddPage}
+            variant="contained"
+            disabled={!pageName.trim()}
+          >
+            Add Page
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Page Dialog */}
+      <Dialog open={editPageDialog} onClose={() => setEditPageDialog(false)}>
+        <DialogTitle>Edit Page Name</DialogTitle>
+        <DialogContent sx={{ width: 400, pt: 2 }}>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Page Name"
+            fullWidth
+            variant="outlined"
+            value={pageName}
+            onChange={(e) => setPageName(e.target.value)}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                handleUpdatePageName();
+              }
+            }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditPageDialog(false)}>Cancel</Button>
+          <Button
+            onClick={handleUpdatePageName}
+            variant="contained"
+            disabled={!pageName.trim()}
+          >
+            Update
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Page Menu */}
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={handleMenuClose}
+      >
+        <MenuItem onClick={handleEditPage}>
+          <Edit fontSize="small" sx={{ mr: 1 }} />
+          Rename
+        </MenuItem>
+        <MenuItem onClick={handleDeletePage} sx={{ color: 'error.main' }}>
+          <Delete fontSize="small" sx={{ mr: 1 }} />
+          Delete
+        </MenuItem>
+      </Menu>
+    </Box>
+  );
+};

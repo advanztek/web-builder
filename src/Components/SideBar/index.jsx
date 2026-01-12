@@ -16,7 +16,7 @@ import {
   FolderOpen,
 } from '@mui/icons-material';
 
-import LayoutPanel from '../Tools/LayoutPanel';
+import {LayoutPanel} from '../Tools/LayoutPanel';
 import TextPanel from '../Tools/TextPanel';
 import ComponentsPanel from '../Tools/ComponentsPanel';
 import SettingsPanel from '../Tools/SettingsPanel';
@@ -36,10 +36,10 @@ const Sidebar = ({ onComponentSelect }) => {
 
   const theme = useTheme();
 
-  // Check if we're on dashboard route
+  const navigate = useNavigate();
+
   const isDashboardRoute = location.pathname === "/" || location.pathname === "/dashboard";
 
-  // All sidebar items
   const allSidebarItems = [
     { id: 'add', icon: <Add />, component: LayoutPanel, label: 'Add', showOnDashboard: false },
     { id: 'layout', icon: <GridOn />, component: LayoutPanel, label: 'Layout', showOnDashboard: false },
@@ -79,6 +79,7 @@ const Sidebar = ({ onComponentSelect }) => {
           position: 'fixed',
           height: '100vh',
           width: '75px',
+          mt:'63px',
           bgcolor: theme.palette.primary.bg || '#0f1419',
           display: 'flex',
           flexDirection: 'column',
@@ -105,7 +106,9 @@ const Sidebar = ({ onComponentSelect }) => {
       >
         {/* Logo */}
         <Box
+         onClick={() => navigate('/dashboard')}
           sx={{
+
             width: 50,
             height: 50,
             bgcolor: '#2563eb',
@@ -154,7 +157,9 @@ const Sidebar = ({ onComponentSelect }) => {
         open={activeDrawer !== null}
         sx={{
           '& .MuiDrawer-paper': {
+            mt: '60px',
             width: 340,
+            borderRadius: 0,
             left: '75px',
             bgcolor: '#141924',
             borderRight: '1px solid #1f2937',

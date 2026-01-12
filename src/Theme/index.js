@@ -83,9 +83,10 @@ export const getTheme = (mode) => {
         },
         styleOverrides: {
           root: {
+            backgroundColor: mode === 'dark' ? '#22222265' : '#ffffff',
+            borderRadius: 9,
             '& .MuiOutlinedInput-root': {
-              borderRadius: 12,
-              height: '40px',
+              height: '48px',
               '& fieldset': {
                 borderWidth: '1.5px',
               },
@@ -104,7 +105,6 @@ export const getTheme = (mode) => {
         styleOverrides: {
           root: {
             borderRadius: 8,
-            backgroundColor: mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'transparent',
             '&:hover': {
               backgroundColor: mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.02)',
             },

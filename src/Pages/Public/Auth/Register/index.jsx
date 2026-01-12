@@ -8,6 +8,7 @@ import {
     useTheme,
     Checkbox,
     FormControlLabel,
+    Stack,
 } from '@mui/material';
 import { Link } from 'react-router-dom';
 
@@ -39,11 +40,8 @@ export default function RegisterPage() {
         <Box
             sx={{
                 minHeight: '100vh',
-                background:
-                    theme.palette.mode === 'dark'
-                        ? 'radial-gradient(ellipse at top right, rgba(60, 40, 80, 0.4) 0%, rgba(10, 10, 10, 1) 50%)'
-                        : 'radial-gradient(ellipse at top right, rgba(200, 180, 220, 0.3) 0%, rgba(245, 245, 245, 1) 50%)',
                 width: '100%',
+                backgroundColor: theme.palette.background.default,
             }}
         >
             <Box
@@ -55,12 +53,12 @@ export default function RegisterPage() {
                     minHeight: '100vh',
                 }}
             >
-                {/* Image Section - 60% width */}
+
                 <Box
                     sx={{
                         minHeight: '100vh',
                         flex: '0 0 60%',
-                        backgroundImage: `url('/Images/auth.png')`,
+                        backgroundImage: `url('/Images/auth2.png')`,
                         backgroundSize: 'cover',
                         backgroundPosition: 'center',
                         display: 'flex',
@@ -79,8 +77,6 @@ export default function RegisterPage() {
                         },
                     }}
                 />
-
-                {/* Form Section - 40% width */}
                 <Box
                     sx={{
                         minHeight: '100vh',
@@ -88,21 +84,18 @@ export default function RegisterPage() {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        py: 4,
+                        py: 1,
                     }}
                 >
                     <Paper
                         elevation={0}
                         sx={{
                             padding: { xs: 4, md: 5, lg: 4 },
-                            background:
-                                theme.palette.mode === 'dark'
-                                    ? 'rgba(100, 90, 120, 0.25)'
-                                    : 'rgba(255, 255, 255, 0.8)',
+                            backgroundColor: theme.palette.background.default,
                             backdropFilter: 'blur(20px)',
                             border: `1px solid ${theme.palette.divider}`,
                             width: '100%',
-                            maxWidth: '550px',
+                            maxWidth: '650px',
                             borderRadius: '24px',
                             mx: 1,
                         }}
@@ -150,25 +143,6 @@ export default function RegisterPage() {
                                         placeholder="Kingsley"
                                         value={formData.firstName}
                                         onChange={handleChange}
-                                        sx={{
-                                            '& .MuiOutlinedInput-root': {
-                                                backgroundColor:
-                                                    theme.palette.mode === 'dark'
-                                                        ? 'rgba(150, 140, 170, 0.3)'
-                                                        : 'rgba(0, 0, 0, 0.05)',
-                                                borderRadius: '12px',
-                                                '& fieldset': { borderColor: 'transparent' },
-                                                '&.Mui-focused fieldset': {
-                                                    borderColor: theme.palette.primary.main,
-                                                },
-                                            },
-                                            '& input': {
-                                                color: theme.palette.text.primary,
-                                                '&::placeholder': {
-                                                    color: theme.palette.text.disabled,
-                                                },
-                                            },
-                                        }}
                                     />
                                 </Box>
 
@@ -189,25 +163,6 @@ export default function RegisterPage() {
                                         placeholder="Terwase"
                                         value={formData.lastName}
                                         onChange={handleChange}
-                                        sx={{
-                                            '& .MuiOutlinedInput-root': {
-                                                backgroundColor:
-                                                    theme.palette.mode === 'dark'
-                                                        ? 'rgba(150, 140, 170, 0.3)'
-                                                        : 'rgba(0, 0, 0, 0.05)',
-                                                borderRadius: '12px',
-                                                '& fieldset': { borderColor: 'transparent' },
-                                                '&.Mui-focused fieldset': {
-                                                    borderColor: theme.palette.primary.main,
-                                                },
-                                            },
-                                            '& input': {
-                                                color: theme.palette.text.primary,
-                                                '&::placeholder': {
-                                                    color: theme.palette.text.disabled,
-                                                },
-                                            },
-                                        }}
                                     />
                                 </Box>
                             </Box>
@@ -231,111 +186,55 @@ export default function RegisterPage() {
                                     placeholder="kingsleyterwase@gmail.com"
                                     value={formData.email}
                                     onChange={handleChange}
-                                    sx={{
-                                        '& .MuiOutlinedInput-root': {
-                                            backgroundColor:
-                                                theme.palette.mode === 'dark'
-                                                    ? 'rgba(150, 140, 170, 0.3)'
-                                                    : 'rgba(0, 0, 0, 0.05)',
-                                            borderRadius: '12px',
-                                            '& fieldset': { borderColor: 'transparent' },
-                                            '&.Mui-focused fieldset': {
-                                                borderColor: theme.palette.primary.main,
-                                            },
-                                        },
-                                        '& input': {
-                                            color: theme.palette.text.primary,
-                                            '&::placeholder': {
-                                                color: theme.palette.text.disabled,
-                                            },
-                                        },
-                                    }}
                                 />
                             </Box>
 
-                            {/* Password Field */}
-                            <Box sx={{ mb: 3 }}>
-                                <Typography
-                                    variant="body2"
-                                    sx={{
-                                        color: theme.palette.text.primary,
-                                        mb: 1.5,
-                                        fontSize: '0.9rem',
-                                    }}
-                                >
-                                    Password
-                                </Typography>
-                                <TextField
-                                    fullWidth
-                                    name="password"
-                                    type="password"
-                                    placeholder="Min. 8 characters"
-                                    value={formData.password}
-                                    onChange={handleChange}
-                                    sx={{
-                                        '& .MuiOutlinedInput-root': {
-                                            backgroundColor:
-                                                theme.palette.mode === 'dark'
-                                                    ? 'rgba(150, 140, 170, 0.3)'
-                                                    : 'rgba(0, 0, 0, 0.05)',
-                                            borderRadius: '12px',
-                                            '& fieldset': { borderColor: 'transparent' },
-                                            '&.Mui-focused fieldset': {
-                                                borderColor: theme.palette.primary.main,
-                                            },
-                                        },
-                                        '& input': {
+                            <Stack direction="row" spacing={3} sx={{ width: '100%' }}>
+                                {/* Password Field */}
+                                <Box sx={{ width: '100%' }}>
+                                    <Typography
+                                        variant="body2"
+                                        sx={{
                                             color: theme.palette.text.primary,
-                                            '&::placeholder': {
-                                                color: theme.palette.text.disabled,
-                                            },
-                                        },
-                                    }}
-                                />
-                            </Box>
+                                            mb: 1.5,
+                                            fontSize: '0.9rem',
+                                        }}
+                                    >
+                                        Password
+                                    </Typography>
+                                    <TextField
+                                        fullWidth
+                                        name="password"
+                                        type="password"
+                                        placeholder="Min. 8 characters"
+                                        value={formData.password}
+                                        onChange={handleChange}
+                                    />
+                                </Box>
 
-                            {/* Confirm Password Field */}
-                            <Box sx={{ mb: 3 }}>
-                                <Typography
-                                    variant="body2"
-                                    sx={{
-                                        color: theme.palette.text.primary,
-                                        mb: 1.5,
-                                        fontSize: '0.9rem',
-                                    }}
-                                >
-                                    Confirm Password
-                                </Typography>
-                                <TextField
-                                    fullWidth
-                                    name="confirmPassword"
-                                    type="password"
-                                    placeholder="Re-enter your password"
-                                    value={formData.confirmPassword}
-                                    onChange={handleChange}
-                                    sx={{
-                                        '& .MuiOutlinedInput-root': {
-                                            backgroundColor:
-                                                theme.palette.mode === 'dark'
-                                                    ? 'rgba(150, 140, 170, 0.3)'
-                                                    : 'rgba(0, 0, 0, 0.05)',
-                                            borderRadius: '12px',
-                                            '& fieldset': { borderColor: 'transparent' },
-                                            '&.Mui-focused fieldset': {
-                                                borderColor: theme.palette.primary.main,
-                                            },
-                                        },
-                                        '& input': {
+                                <Box sx={{ width: '100%' }}>
+                                    <Typography
+                                        variant="body2"
+                                        sx={{
                                             color: theme.palette.text.primary,
-                                            '&::placeholder': {
-                                                color: theme.palette.text.disabled,
-                                            },
-                                        },
-                                    }}
-                                />
-                            </Box>
+                                            mb: 1.5,
+                                            fontSize: '0.9rem',
+                                        }}
+                                    >
+                                        Confirm Password
+                                    </Typography>
+                                    <TextField
+                                        fullWidth
+                                        name="confirmPassword"
+                                        type="password"
+                                        placeholder="Re-enter your password"
+                                        value={formData.confirmPassword}
+                                        onChange={handleChange}
+                                    />
+                                </Box>
+                            </Stack>
 
-                            {/* Terms and Conditions */}
+
                             <FormControlLabel
                                 control={
                                     <Checkbox
@@ -373,7 +272,7 @@ export default function RegisterPage() {
                                 fullWidth
                                 variant="contained"
                                 sx={{
-                                    backgroundColor: theme.palette.primary.main,
+                                    backgroundColor: theme.palette.primary.dark,
                                     color: theme.palette.primary.contrastText,
                                     textTransform: 'none',
                                     fontSize: '1rem',

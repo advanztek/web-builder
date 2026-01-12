@@ -1,10 +1,11 @@
+
 export const lightModeColors = {
   primary: {
     main: '#1976d2',
     light: '#42a5f5',
     dark: '#1565c0',
     contrastText: '#ffffff',
-    lightBg: '#141924',
+    lightBg: '#e3f2fd', 
     bg: '#0f1419'
   },
   secondary: {
@@ -40,13 +41,24 @@ export const lightModeColors = {
   background: {
     default: '#f5f5f5',
     paper: '#ffffff',
+    glass: 'rgba(255, 255, 255, 0.95)',
   },
   text: {
     primary: 'rgba(0, 0, 0, 0.87)',
     secondary: 'rgba(0, 0, 0, 0.6)',
     disabled: 'rgba(0, 0, 0, 0.38)',
+    heading: '#1a1a1a', 
   },
   divider: 'rgba(0, 0, 0, 0.12)',
+  accent: {
+    yellow: '#fff59d', 
+    blue: '#90caf9',   
+    lightBlue: '#bbdefb', 
+    red: '#ef5350',   
+    gray: '#e0e0e0',  
+    lightGray: '#d0d0d0',
+    darkGray: '#666', 
+  },
 };
 
 export const darkModeColors = {
@@ -55,8 +67,8 @@ export const darkModeColors = {
     light: '#e3f2fd',
     dark: '#42a5f5',
     contrastText: 'rgba(0, 0, 0, 0.87)',
-    lightBg: '#141924',
-    bg: '#0f1419'
+    lightBg: '#1e293b', 
+    bg: 'rgba(15, 20, 25, 0.95)'
   },
   secondary: {
     main: '#ce93d8',
@@ -89,13 +101,24 @@ export const darkModeColors = {
     contrastText: 'rgba(0, 0, 0, 0.87)',
   },
   background: {
-    default: '#121212',
+    default: '#000000ff',
     paper: '#0f1419',
+    glass: 'rgba(15, 20, 25, 0.95)', 
   },
   text: {
     primary: '#ffffff',
     secondary: 'rgba(255, 255, 255, 0.7)',
     disabled: 'rgba(255, 255, 255, 0.5)',
+    heading: '#ffffff', 
   },
   divider: 'rgba(255, 255, 255, 0.12)',
+  accent: {
+    yellow: '#ffd54f', 
+    blue: '#64b5f6',   
+    lightBlue: '#90caf9', 
+    red: '#ef5350',
+    gray: '#424242',   
+    lightGray: '#616161', 
+    darkGray: '#9e9e9e', 
+  },
 };

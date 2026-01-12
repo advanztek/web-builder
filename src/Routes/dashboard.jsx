@@ -1,18 +1,18 @@
 import { Routes, Route } from "react-router-dom";
 import Dashboard from "../Components/Dashboard";
-import PublicLayout from "../Layout/PublicLayout";
-
+import DashboardLayout from "../Layout/DashboardLayout";
+import { EditorPage } from "../Pages/Dashboard";
 
 const DashboardRoutes = () => {
-    return (
-        <PublicLayout>
-            <Routes>
-                <Route path="/dashboard">
-                    <Route index element={<Dashboard />} />
-                </Route>
-            </Routes>
-        </PublicLayout>
-    );
+  return (
+    <DashboardLayout>
+      <Routes>
+        <Route index element={<Dashboard />} />
+
+        <Route path="editor" element={<EditorPage />} />
+      </Routes>
+    </DashboardLayout>
+  );
 };
 
 export default DashboardRoutes;

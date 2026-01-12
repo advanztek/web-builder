@@ -1,22 +1,31 @@
 import React, { useState } from 'react';
-import { Box, Typography } from '@mui/material';
+import { Box, Container, Typography } from '@mui/material';
+import { FeaturesSection, ToolsSection } from  '../../../Components'
+import WhatMattersSection from '../../../Components/WhatMatters';
+import TestimonialSection from '../../../Components/TestimonialSection';
+import FAQSection from '../../../Components/FaqSection';
+import FeaturesH from '../../../Components/LandingCmpnents/FeaturesH';
+import HowItWorksH from '../../../Components/LandingCmpnents/HowItWorksH';
+import PricingH from '../../../Components/LandingCmpnents/PricingH';
+import LandingPage from '../../../Components/LandingPage';
+
 
 const HomePage = () => {
 
   return (
-    <Box sx={{ 
-      display: 'flex',
-      width: '100%',
-      height: '100vh',
-      overflowX: 'hidden',
-      color: '#fff',
-      py:14,
-      px:12,
-    }}>
-      <Typography>
-         Main Area
-      </Typography>
-    </Box>
+    <>
+    {/* // <Container maxWidth="lg"> */}
+       <LandingPage />
+       {/* <FeaturesSection />  
+       <FeaturesH />
+       <ToolsSection />  
+       <PricingH />
+       <WhatMattersSection /> 
+       <HowItWorksH />
+       <TestimonialSection />  
+       <FAQSection />   */}
+    {/* </Container> */}
+    </>
   );
 };
 

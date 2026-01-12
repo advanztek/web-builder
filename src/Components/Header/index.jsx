@@ -1,265 +1,172 @@
-import React from 'react';
-import {
-    Box,
-    IconButton,
-    Button,
-    TextField,
-    InputAdornment,
-    useTheme,
-} from '@mui/material';
-import {
-    Person,
-    Search,
-    LightMode,
-    DarkMode,
-    Laptop,
-    Tablet,
-    Smartphone,
-    Undo,
-    Redo,
-    Upload,
-    ArrowBackIos,
-    ReplyAll,
-    Logout,
-} from '@mui/icons-material';
-import { useThemeContext } from '../../Context';
-import { Person20Regular, PersonRegular, Search20Regular, } from '@fluentui/react-icons';
+import { useState, useEffect } from 'react';
+import { Box, Container, Typography, Button, AppBar, Toolbar, IconButton, useTheme } from '@mui/material';
+import { PlayArrow, Menu } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
+import {
+    Book20Regular,
+    ContactCard20Regular,
+} from "@fluentui/react-icons";
 
 
-const Header = () => {
-    const { mode, toggleTheme } = useThemeContext();
+function Header() {
     const theme = useTheme();
     const navigate = useNavigate();
     const location = useLocation();
+    const [scrolled, setScrolled] = useState(false);
+    const [currentSlide, setCurrentSlide] = useState(0);
 
-    const isEditorView = location.pathname.includes('/editor');
+    // Check if current page is homepage
+    const isHomePage = location.pathname === '/';
 
-    const handleBack = () => {
-        navigate('/');
-    };
+    useEffect(() => {
+        const handleScroll = () => {
+            setScrolled(window.scrollY > 50);
+        };
+
+        window.addEventListener('scroll', handleScroll);
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
+
+    useEffect(() => {
+        // Only run slideshow on homepage
+        if (!isHomePage) return;
+
+        const interval = setInterval(() => {
+            setCurrentSlide((prev) => (prev + 1) % 3);
+        }, 3000);
+        return () => clearInterval(interval);
+    }, [isHomePage]);
+
+    const slides = [
+        {
+            title: "Building apps just got easier",
+            description: "Aliquam vel platea curabitur sit vestibulum egestas sit id lorem. Aliquet neque, dui sed eget scelerisque. Non at at venenatis tortor amet feugiat ullamcorper in. Odio vulputate eros vel lacinia turpis volutpat adipiscing. Sollicitudin at velit, blandit tempus nunc in."
+        },
+        {
+            title: "Create powerful solutions faster",
+            description: "Transform your ideas into reality with our intuitive platform. Build, deploy, and scale applications with ease using modern tools and best practices."
+        },
+        {
+            title: "Innovation at your fingertips",
+            description: "Leverage cutting-edge technology to bring your vision to life. Our platform empowers developers to create exceptional experiences effortlessly."
+        }
+    ];
+
+    const navItems = [
+        { label: 'Documentation', link: '/documentation' },
+    ];
+
+    const handleGetStarted = () => {
+        navigate('/dashboard');
+    }
+    const handleLogin = () => {
+        navigate('/login');
+    }
 
     return (
-        <Box
-            sx={{
-                position: 'fixed',
-                top: 0,
-                left: '75px',
-                right: 0,
-                height: '66px',
-                bgcolor: theme.palette.background.paper,
-                borderBottom: `1px solid ${theme.palette.divider}`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                px: 3,
-                zIndex: 1200,
-            }}
-        >
-            {isEditorView ? (
-                <>
-                    <Box sx={{ display: 'flex', gap: 2 }}>
-                        <Button
-                            variant='contained'
-                            onClick={handleBack}
+        <>
+            <AppBar
+                position="fixed"
+                elevation={0}
+                sx={{
+                    backgroundColor: scrolled
+                        ? theme.palette.background.glass
+                        : 'transparent',
+                    // backdropFilter: scrolled ? 'blur(10px)' : 'none',
+                    transition: 'all 0.3s ease-in-out',
+                    borderRadius: 0,
+                    boxShadow: 0
+                }}
+            >
+                <Container maxWidth="lg">
+                    <Toolbar sx={{ justifyContent: 'space-between', py: 1 }}>
+                        <Typography
+                            variant='h3'
                             sx={{
-                                color: theme.palette.text.secondary,
-                                bgcolor: theme.palette.action.hover,
-                                gap:1,
-                                px:2,
-                                py:0.7,
-                                fontSize: 16,
-                                '&:hover': {
-                                    color: theme.palette.text.primary,
-                                    bgcolor: theme.palette.action.hover,
-                                },
+                                fontWeight: 'bold',
+                                background: `linear-gradient(135deg, #ff6b9d 0%, #feca57 50%, #48dbfb 100%)`,
+                                WebkitBackgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent',
+                                lineHeight: 1.2,
                             }}
                         >
-                            <ReplyAll />Back
-                        </Button>
-                        <IconButton
-                            sx={{
-                                color: theme.palette.text.secondary,
-                                '&:hover': {
-                                    color: theme.palette.text.primary,
-                                    bgcolor: theme.palette.action.hover,
-                                },
-                            }}
-                        >
-                            <Laptop />
-                        </IconButton>
-                        <IconButton
-                            sx={{
-                                color: theme.palette.text.secondary,
-                                '&:hover': {
-                                    color: theme.palette.text.primary,
-                                    bgcolor: theme.palette.action.hover,
-                                },
-                            }}
-                        >
-                            <Tablet />
-                        </IconButton>
-                        <IconButton
-                            sx={{
-                                color: theme.palette.text.secondary,
-                                '&:hover': {
-                                    color: theme.palette.text.primary,
-                                    bgcolor: theme.palette.action.hover,
-                                },
-                            }}
-                        >
-                            <Smartphone />
-                        </IconButton>
-                    </Box>
+                            Web Builder
+                        </Typography>
 
-                    {/* Editor View - Right Side */}
-                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                        <IconButton
-                            sx={{
-                                color: theme.palette.text.secondary,
-                                '&:hover': {
-                                    color: theme.palette.text.primary,
-                                    bgcolor: theme.palette.action.hover,
-                                },
-                            }}
-                        >
-                            <Undo />
-                        </IconButton>
-                        <IconButton
-                            sx={{
-                                color: theme.palette.text.secondary,
-                                '&:hover': {
-                                    color: theme.palette.text.primary,
-                                    bgcolor: theme.palette.action.hover,
-                                },
-                            }}
-                        >
-                            <Redo />
-                        </IconButton>
-                        <IconButton
-                            sx={{
-                                color: theme.palette.text.secondary,
-                                '&:hover': {
-                                    color: theme.palette.text.primary,
-                                    bgcolor: theme.palette.action.hover,
-                                },
-                            }}
-                        >
-                            <Upload />
-                        </IconButton>
-                        <IconButton
-                            onClick={toggleTheme}
-                            sx={{
-                                color: theme.palette.text.secondary,
-                                transition: 'all 0.3s ease',
-                                '&:hover': {
-                                    color: theme.palette.primary.main,
-                                    bgcolor: theme.palette.action.hover,
-                                    transform: 'rotate(180deg)',
-                                },
-                            }}
-                        >
-                            {mode === 'dark' ? <LightMode sx={{ fontSize: 24 }} /> : <DarkMode sx={{ fontSize: 24 }} />}
-                        </IconButton>
-                        <Button
-                            variant="contained"
-                            sx={{
-                                bgcolor: theme.palette.primary.dark,
-                                color: theme.palette.primary.contrastText,
-                                textTransform: 'none',
-                                px: 3,
-                                fontWeight: 600,
-                                '&:hover': {
-                                    bgcolor: theme.palette.primary.main,
-                                },
-                            }}
-                        >
-                            Publish
-                        </Button>
-                    </Box>
-                </>
-            ) : (
-                <>
-                    {/* Dashboard View - Left Side */}
-                    <TextField
-                        placeholder="Search projects..."
-                        size="small"
-                        sx={{
-                            maxWidth: '400px',
-                            flex: 1,
-                            '& .MuiOutlinedInput-root': {
-                                bgcolor: theme.palette.action.hover,
-                                '& fieldset': {
-                                    border: 'none',
-                                },
-                            },
-                        }}
-                        InputProps={{
-                            startAdornment: (
-                                <InputAdornment position="start">
-                                    <Search20Regular style={{ color: theme.palette.text.secondary }} />
-                                </InputAdornment>
-                            ),
-                        }}
-                    />
+                        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
 
-                    {/* Dashboard View - Right Side */}
-                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                        <IconButton
-                            onClick={toggleTheme}
-                            sx={{
-                                color: theme.palette.text.secondary,
-                                transition: 'all 0.3s ease',
-                                '&:hover': {
-                                    color: theme.palette.primary.main,
-                                    bgcolor: theme.palette.action.hover,
-                                    transform: 'rotate(180deg)',
-                                },
-                            }}
-                        >
-                            {mode === 'dark' ? <LightMode sx={{ fontSize: 24 }} /> : <DarkMode sx={{ fontSize: 24 }} />}
-                        </IconButton>
-                        <Button
-                            variant="contained"
-                            sx={{
-                                bgcolor: theme.palette.primary.dark,
-                                color: theme.palette.primary.contrastText,
-                                textTransform: 'none',
-                                px: 2,
-                                fontWeight: 600,
-                                gap: 1,
-                                '&:hover': {
-                                    bgcolor: theme.palette.primary.main,
-                                },
-                            }}
-                        >
-                            <Person20Regular />
-                            Profile
-                        </Button>
-                        <Button
-                            variant="contained"
-                            sx={{
-                                bgcolor: theme.palette.error.main,
-                                color: theme.palette.common.white,
-                                textTransform: 'none',
-                                px: 2,
-                                fontWeight: 600,
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 1,
-                                '&:hover': {
-                                    bgcolor: theme.palette.error.dark,
-                                },
-                            }}
-                        >
-                            <Logout fontSize="small" />
-                            Logout
-                        </Button>
-                    </Box>
-                </>
-            )}
-        </Box>
+                            <Box
+                                sx={{
+                                    display: { xs: "none", md: "flex" },
+                                    alignItems: "center",
+                                    gap: 4,
+                                }}
+                            >
+                                {navItems.map((item) => {
+                                    const icon =
+                                        item.label === "Documentation" ? (
+                                            <Book20Regular />
+                                        ) : item.label === "Contact" ? (
+                                            <ContactCard20Regular />
+                                        ) : null;
+
+                                    return (
+                                        <Box
+                                            key={item.label}
+                                            onClick={() => navigate(item.link)}
+                                            sx={{
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: icon ? 1 : 0,
+                                                color: scrolled ? theme.palette.text.small : "#fff",
+                                                fontSize: "15px",
+                                                fontWeight: 500,
+                                                cursor: "pointer",
+                                                transition: "color 0.2s",
+                                                "&:hover": {
+                                                    color: theme.palette.primary.main,
+                                                },
+                                                "& svg": {
+                                                    fontSize: "18px",
+                                                },
+                                            }}
+                                        >
+                                            {icon}
+                                            <Typography component="span" sx={{ fontSize: "15px", fontWeight: 500 }}>
+                                                {item.label}
+                                            </Typography>
+                                        </Box>
+                                    );
+                                })}
+                            </Box>
+
+                            <Button
+                                variant="outlined"
+                                onClick={handleGetStarted}
+                                sx={{
+                                    textTransform: "none",
+                                    px: 2,
+                                    py: 0.7,
+                                    borderRadius: "50px",
+                                    borderColor: theme.palette.divider,
+                                    color: theme.palette.text.secondary,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 1,
+                                }}
+                            >
+                                🚀 Get Started
+                            </Button>
+
+                            <IconButton sx={{ display: { xs: 'block', md: 'none' } }}>
+                                <Menu />
+                            </IconButton>
+                        </Box>
+                    </Toolbar>
+                </Container>
+            </AppBar>
+        </>
     );
-};
+}
 
 export default Header;
