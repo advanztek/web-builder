@@ -1,1 +1,1 @@
-export const BASE_SERVER_URL = "https://web-builder-backend-lawy.onrender.com/V1"
+export const BASE_SERVER_URL = import.meta.env.VITE_API_BASE_URL;
