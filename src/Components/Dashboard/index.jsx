@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import {
@@ -29,6 +29,12 @@ import {
     ListItemText,
     Alert,
     Snackbar,
+    CircularProgress,
+    Grid,
+    FormControl,
+    InputLabel,
+    Select,
+    MenuItem as SelectMenuItem,
 } from '@mui/material';
 import {
     Add,
@@ -42,16 +48,22 @@ import {
     Delete,
     ContentCopy,
     OpenInNew,
+    Refresh,
 } from '@mui/icons-material';
 import { FONT_FAMILY } from '../../Config/font';
 import {
-    createProject,
     setActiveProject,
-    deleteProject,
+    deleteProject as deleteProjectRedux,
     duplicateProject,
     updateProjectName,
 } from '../../Store/slices/projectsSlice';
+import {
+    useCreateProject,
+    useGetProjects,
+    useDeleteProject
+} from '../../Hooks/projects';
 
+// Dashboard Slider Component
 const DashboardSlider = () => {
     const theme = useTheme();
     const [currentSlide, setCurrentSlide] = useState(0);
@@ -198,19 +210,53 @@ const DashboardSlider = () => {
     );
 };
 
-// Projects Table Component with Real Data
+// Projects Table Component
 const ProjectsTable = () => {
     const theme = useTheme();
     const navigate = useNavigate();
     const dispatch = useDispatch();
 
-    const projects = useSelector(state => state.projects.projects);
-    const projectsList = Object.values(projects);
+    const reduxProjects = useSelector(state => state.projects.projects);
+    const reduxProjectsList = useMemo(() => Object.values(reduxProjects), [reduxProjects]);
 
+    const { getProjects, projects: apiProjects, loading: loadingProjects } = useGetProjects();
+    const { deleteProject: deleteProjectAPI } = useDeleteProject();
+
+    const [hasLoadedAPI, setHasLoadedAPI] = useState(false);
     const [anchorEl, setAnchorEl] = useState(null);
     const [selectedProject, setSelectedProject] = useState(null);
     const [editDialogOpen, setEditDialogOpen] = useState(false);
     const [editName, setEditName] = useState('');
+
+    const projectsList = useMemo(() => {
+        if (apiProjects && apiProjects.length > 0) {
+            return apiProjects;
+        }
+        return reduxProjectsList;
+    }, [apiProjects, reduxProjectsList]);
+
+    useEffect(() => {
+        if (!hasLoadedAPI) {
+            const fetchProjects = async () => {
+                try {
+                    await getProjects();
+                } catch (error) {
+                    console.log('API fetch failed, using Redux projects:', error);
+                } finally {
+                    setHasLoadedAPI(true);
+                }
+            };
+            fetchProjects();
+        }
+    }, [hasLoadedAPI]);
+
+    const handleRefresh = async () => {
+        try {
+            await getProjects();
+        } catch (error) {
+            console.log('Refresh failed:', error);
+        }
+    };
 
     const handleMenuOpen = (event, project) => {
         setAnchorEl(event.currentTarget);
@@ -223,7 +269,8 @@ const ProjectsTable = () => {
 
     const handleOpenProject = (project) => {
         dispatch(setActiveProject(project.id));
-        navigate('/dashboard/editor');
+        // Navigate to editor with project ID in URL
+        navigate(`/dashboard/editor/${project.id}`);
         handleMenuClose();
     };
 
@@ -250,81 +297,158 @@ const ProjectsTable = () => {
         handleMenuClose();
     };
 
-    const handleDelete = () => {
+    const handleDelete = async () => {
         if (window.confirm(`Are you sure you want to delete "${selectedProject.name}"?`)) {
-            dispatch(deleteProject(selectedProject.id));
+            try {
+                await deleteProjectAPI(selectedProject.id);
+            } catch (error) {
+                console.log('API delete failed:', error);
+            }
+
+            dispatch(deleteProjectRedux(selectedProject.id));
+
+            try {
+                await getProjects();
+            } catch (error) {
+                console.log('Refresh after delete failed:', error);
+            }
         }
         handleMenuClose();
     };
 
     const formatDate = (timestamp) => {
-        const now = Date.now();
-        const diff = now - timestamp;
-        const minutes = Math.floor(diff / 60000);
-        const hours = Math.floor(diff / 3600000);
-        const days = Math.floor(diff / 86400000);
+        if (!timestamp) return 'N/A';
 
-        if (minutes < 60) return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'} ago`;
-        if (hours < 24) return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
-        if (days < 7) return `${days} ${days === 1 ? 'day' : 'days'} ago`;
+        try {
+            const date = typeof timestamp === 'string' ? new Date(timestamp) : new Date(timestamp);
+            const now = Date.now();
+            const diff = now - date.getTime();
+            const minutes = Math.floor(diff / 60000);
+            const hours = Math.floor(diff / 3600000);
+            const days = Math.floor(diff / 86400000);
 
-        return new Date(timestamp).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-        });
+            if (minutes < 60) return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'} ago`;
+            if (hours < 24) return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
+            if (days < 7) return `${days} ${days === 1 ? 'day' : 'days'} ago`;
+
+            return date.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+            });
+        } catch (error) {
+            return 'N/A';
+        }
     };
 
     const getProjectStatus = (project) => {
-        if (project.gjsData) {
-            const timeSinceUpdate = Date.now() - project.updatedAt;
-            const daysSinceUpdate = timeSinceUpdate / 86400000;
-
-            if (daysSinceUpdate < 1) return 'In Progress';
-            if (daysSinceUpdate < 7) return 'Review';
-            return 'Completed';
+        // Check if project.data exists and has a status field (string)
+        if (project.data && typeof project.data.status === 'string') {
+            return project.data.status.charAt(0).toUpperCase() + project.data.status.slice(1);
         }
+
+        // Check if project has a direct status field (string)
+        if (typeof project.status === 'string') {
+            return project.status.charAt(0).toUpperCase() + project.status.slice(1);
+        }
+
+        // Check for boolean status (active/inactive from backend)
+        if (typeof project.status === 'boolean') {
+            return project.status ? 'Active' : 'Inactive';
+        }
+
+        // Fallback: determine status based on content and dates
+        if (project.gjsData || project.sections) {
+            const updateTime = project.updatedAt || project.updated_at;
+            if (!updateTime) return 'New';
+
+            try {
+                const timeSinceUpdate = Date.now() - (typeof updateTime === 'string' ? new Date(updateTime).getTime() : updateTime);
+                const daysSinceUpdate = timeSinceUpdate / 86400000;
+
+                if (daysSinceUpdate < 1) return 'In Progress';
+                if (daysSinceUpdate < 7) return 'Review';
+                return 'Completed';
+            } catch (error) {
+                return 'New';
+            }
+        }
+
         return 'New';
     };
 
     const getStatusColor = (status) => {
-        switch (status) {
-            case 'Completed':
+        const statusLower = status.toLowerCase();
+        switch (statusLower) {
+            case 'completed':
+            case 'published':
+            case 'active':
                 return 'success';
-            case 'In Progress':
+            case 'in progress':
+            case 'draft':
                 return 'primary';
-            case 'Review':
+            case 'review':
                 return 'warning';
-            case 'New':
+            case 'new':
+            case 'inactive':
                 return 'default';
             default:
                 return 'default';
         }
     };
 
+    if (loadingProjects && projectsList.length === 0 && !hasLoadedAPI) {
+        return (
+            <Box sx={{ mt: 6, textAlign: 'center', py: 8 }}>
+                <CircularProgress />
+                <Typography variant="body1" color="text.secondary" sx={{ mt: 2 }}>
+                    Loading projects...
+                </Typography>
+            </Box>
+        );
+    }
+
     if (projectsList.length === 0) {
         return (
             <Box sx={{ mt: 6, textAlign: 'center', py: 8 }}>
                 <Folder sx={{ fontSize: 64, color: theme.palette.text.disabled, mb: 2 }} />
-                <Typography variant="h6" color="text.secondary">
+                <Typography variant="h6" color="text.secondary" gutterBottom>
                     No projects yet. Create your first project to get started!
                 </Typography>
+                <Button
+                    variant="outlined"
+                    startIcon={<Refresh />}
+                    onClick={handleRefresh}
+                    sx={{ mt: 2 }}
+                    disabled={loadingProjects}
+                >
+                    {loadingProjects ? 'Refreshing...' : 'Refresh'}
+                </Button>
             </Box>
         );
     }
 
     return (
         <Box sx={{ mt: 6 }}>
-            <Typography
-                variant="h5"
-                sx={{
-                    fontWeight: 600,
-                    mb: 3,
-                    color: theme.palette.text.primary,
-                }}
-            >
-                Recent Projects ({projectsList.length})
-            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                <Typography
+                    variant="h5"
+                    sx={{
+                        fontWeight: 600,
+                        color: theme.palette.text.primary,
+                    }}
+                >
+                    Recent Projects ({projectsList.length})
+                </Typography>
+                <Button
+                    startIcon={loadingProjects ? <CircularProgress size={16} /> : <Refresh />}
+                    onClick={handleRefresh}
+                    disabled={loadingProjects}
+                    size="small"
+                >
+                    {loadingProjects ? 'Refreshing...' : 'Refresh'}
+                </Button>
+            </Box>
             <TableContainer
                 component={Paper}
                 sx={{
@@ -344,7 +468,13 @@ const ProjectsTable = () => {
                     </TableHead>
                     <TableBody>
                         {projectsList
-                            .sort((a, b) => b.updatedAt - a.updatedAt)
+                            .sort((a, b) => {
+                                const aTime = a.updatedAt || a.updated_at || a.createdAt || a.created_at || 0;
+                                const bTime = b.updatedAt || b.updated_at || b.createdAt || b.created_at || 0;
+                                const aDate = typeof aTime === 'string' ? new Date(aTime).getTime() : aTime;
+                                const bDate = typeof bTime === 'string' ? new Date(bTime).getTime() : bTime;
+                                return bDate - aDate;
+                            })
                             .slice(0, 10)
                             .map((project) => {
                                 const status = getProjectStatus(project);
@@ -370,10 +500,10 @@ const ProjectsTable = () => {
                                             />
                                         </TableCell>
                                         <TableCell sx={{ color: theme.palette.text.secondary }}>
-                                            {formatDate(project.createdAt)}
+                                            {formatDate(project.createdAt || project.created_at)}
                                         </TableCell>
                                         <TableCell sx={{ color: theme.palette.text.secondary }}>
-                                            {formatDate(project.updatedAt)}
+                                            {formatDate(project.updatedAt || project.updated_at || project.createdAt || project.created_at)}
                                         </TableCell>
                                         <TableCell onClick={(e) => e.stopPropagation()}>
                                             <IconButton
@@ -390,7 +520,6 @@ const ProjectsTable = () => {
                 </Table>
             </TableContainer>
 
-            {/* Context Menu */}
             <Menu
                 anchorEl={anchorEl}
                 open={Boolean(anchorEl)}
@@ -422,7 +551,6 @@ const ProjectsTable = () => {
                 </MenuItem>
             </Menu>
 
-            {/* Edit Dialog */}
             <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)}>
                 <DialogTitle>Rename Project</DialogTitle>
                 <DialogContent sx={{ width: 400, pt: 2 }}>
@@ -460,160 +588,95 @@ const Dashboard = () => {
     const navigate = useNavigate();
     const dispatch = useDispatch();
 
-    const projects = useSelector(state => state.projects.projects);
-    const projectsList = Object.values(projects);
+    const { createProject, loading: creatingProject } = useCreateProject();
+
+    const reduxProjects = useSelector(state => state.projects.projects);
+    const projectsList = useMemo(() => Object.values(reduxProjects), [reduxProjects]);
 
     const [createDialogOpen, setCreateDialogOpen] = useState(false);
-    const [projectName, setProjectName] = useState('');
-    const [storageError, setStorageError] = useState(null);
+    const [formData, setFormData] = useState({
+        name: '',
+        description: '',
+        primaryColor: '#1976d2',
+        secondaryColor: '#0F172A',
+        backgroundColor: '#FFFFFF',
+        font: 'Inter'
+    });
+    const [error, setError] = useState('');
     const [snackbarOpen, setSnackbarOpen] = useState(false);
-    
-    const hasLoadedRef = useRef(false);
-    const saveTimeoutRef = useRef(null);
+    const [snackbarMessage, setSnackbarMessage] = useState('');
+    const [snackbarSeverity, setSnackbarSeverity] = useState('success');
 
-    // Load projects from localStorage ONCE on mount
-    useEffect(() => {
-        // Only load if we haven't already and Redux store is empty
-        if (hasLoadedRef.current || Object.keys(projects).length > 0) {
-            return;
-        }
-
-        try {
-            const savedData = localStorage.getItem('grapesjs-projects');
-            if (savedData) {
-                const parsed = JSON.parse(savedData);
-                console.log('Loaded projects from localStorage:', parsed);
-                // Note: Since loadProjectsFromStorage doesn't exist, 
-                // projects will be managed through Redux actions only
-                hasLoadedRef.current = true;
-            }
-        } catch (error) {
-            console.error('Error loading projects:', error);
-            setStorageError('Failed to load saved projects. Starting fresh.');
-            setSnackbarOpen(true);
-        }
-
-        hasLoadedRef.current = true;
-    }, []); // Run only once on mount
-
-    // Save to localStorage with debouncing and error handling
-    useEffect(() => {
-        // Skip if no projects or still loading
-        if (Object.keys(projects).length === 0 || !hasLoadedRef.current) {
-            return;
-        }
-
-        // Clear existing timeout
-        if (saveTimeoutRef.current) {
-            clearTimeout(saveTimeoutRef.current);
-        }
-
-        // Debounce the save operation
-        saveTimeoutRef.current = setTimeout(() => {
-            try {
-                const dataToSave = {
-                    projects,
-                    activeProjectId: null,
-                    lastSaved: Date.now()
-                };
-
-                const dataString = JSON.stringify(dataToSave);
-                
-                // Check data size before saving
-                const sizeInBytes = new Blob([dataString]).size;
-                const sizeInMB = sizeInBytes / (1024 * 1024);
-                
-                // LocalStorage typical limit is 5-10MB
-                if (sizeInMB > 4.5) {
-                    console.warn(`Data size is large: ${sizeInMB.toFixed(2)}MB. Creating lightweight backup...`);
-                    
-                    // Create lightweight version with only essential data
-                    const lightweightData = {
-                        projects: Object.fromEntries(
-                            Object.entries(projects).map(([id, project]) => [
-                                id,
-                                {
-                                    id: project.id,
-                                    name: project.name,
-                                    createdAt: project.createdAt,
-                                    updatedAt: project.updatedAt,
-                                    // Exclude large gjsData if it exists
-                                    ...(project.gjsData && { hasGjsData: true })
-                                }
-                            ])
-                        ),
-                        activeProjectId: null,
-                        lastSaved: Date.now(),
-                        lightweight: true
-                    };
-                    
-                    localStorage.setItem('grapesjs-projects', JSON.stringify(lightweightData));
-                    setStorageError('Large project data detected. Saving essential info only.');
-                    setSnackbarOpen(true);
-                } else {
-                    localStorage.setItem('grapesjs-projects', dataString);
-                }
-            } catch (error) {
-                console.error('Error saving to localStorage:', error);
-                
-                if (error.name === 'QuotaExceededError') {
-                    // Try to save minimal data
-                    try {
-                        const minimalData = {
-                            projects: Object.fromEntries(
-                                Object.entries(projects).map(([id, project]) => [
-                                    id,
-                                    {
-                                        id: project.id,
-                                        name: project.name,
-                                        createdAt: project.createdAt,
-                                        updatedAt: project.updatedAt,
-                                    }
-                                ])
-                            ),
-                            lastSaved: Date.now(),
-                            quotaExceeded: true
-                        };
-                        
-                        localStorage.setItem('grapesjs-projects', JSON.stringify(minimalData));
-                        setStorageError('Storage limit reached. Saving project names only. Consider exporting your projects.');
-                        setSnackbarOpen(true);
-                    } catch (retryError) {
-                        console.error('Failed to save even minimal data:', retryError);
-                        setStorageError('Unable to save projects. Storage is full. Please clear browser data or export projects.');
-                        setSnackbarOpen(true);
-                    }
-                } else {
-                    setStorageError('Failed to save projects to browser storage.');
-                    setSnackbarOpen(true);
-                }
-            }
-        }, 1500); // Debounce for 1.5 seconds
-
-        return () => {
-            if (saveTimeoutRef.current) {
-                clearTimeout(saveTimeoutRef.current);
-            }
-        };
-    }, [projects]);
+    const handleInputChange = (field) => (event) => {
+        setFormData(prev => ({
+            ...prev,
+            [field]: event.target.value
+        }));
+        setError('');
+    };
 
     const handleCreateProject = () => {
         setCreateDialogOpen(true);
     };
 
-    const handleConfirmCreate = () => {
-        if (projectName.trim()) {
-            const action = dispatch(createProject({ name: projectName }));
-            const newProjectId = action.payload?.id;
+    const handleConfirmCreate = async () => {
+        if (!formData.name.trim()) {
+            setError('Project name is required');
+            return;
+        }
 
-            setProjectName('');
-            setCreateDialogOpen(false);
+        setError('');
 
-            // Navigate to editor with new project
-            if (newProjectId) {
-                dispatch(setActiveProject(newProjectId));
-                navigate('/dashboard/editor');
+        try {
+            const projectData = {
+                name: formData.name.trim(),
+                description: formData.description.trim() || `Project: ${formData.name}`,
+                primaryColor: formData.primaryColor,
+                secondaryColor: formData.secondaryColor,
+                backgroundColor: formData.backgroundColor,
+                font: formData.font,
+            };
+
+            console.log('Creating project with data:', projectData);
+
+            const result = await createProject(projectData);
+
+            if (result) {
+                setFormData({
+                    name: '',
+                    description: '',
+                    primaryColor: '#1976d2',
+                    secondaryColor: '#0F172A',
+                    backgroundColor: '#FFFFFF',
+                    font: 'Inter'
+                });
+                setCreateDialogOpen(false);
+
+                setSnackbarMessage('Project created successfully!');
+                setSnackbarSeverity('success');
+                setSnackbarOpen(true);
             }
+        } catch (err) {
+            console.error('Error creating project:', err);
+            setError(err.message || 'Failed to create project');
+            setSnackbarMessage(err.message || 'Failed to create project');
+            setSnackbarSeverity('error');
+            setSnackbarOpen(true);
+        }
+    };
+
+    const handleDialogClose = () => {
+        if (!creatingProject) {
+            setCreateDialogOpen(false);
+            setError('');
+            setFormData({
+                name: '',
+                description: '',
+                primaryColor: '#1976d2',
+                secondaryColor: '#0F172A',
+                backgroundColor: '#FFFFFF',
+                font: 'Inter'
+            });
         }
     };
 
@@ -778,50 +841,181 @@ const Dashboard = () => {
                 </div>
             </Box>
 
-            {/* Create Project Dialog */}
-            <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)}>
+            <Dialog
+                open={createDialogOpen}
+                onClose={handleDialogClose}
+                maxWidth="md"
+                fullWidth
+            >
                 <DialogTitle>Create New Project</DialogTitle>
-                <DialogContent sx={{ width: 400, pt: 2 }}>
-                    <TextField
-                        autoFocus
-                        fullWidth
-                        label="Project Name"
-                        variant="outlined"
-                        placeholder="e.g., My Awesome Website"
-                        value={projectName}
-                        onChange={(e) => setProjectName(e.target.value)}
-                        onKeyPress={(e) => {
-                            if (e.key === 'Enter') {
-                                handleConfirmCreate();
-                            }
-                        }}
-                    />
+                <DialogContent sx={{ pt: 2 }}>
+                    {error && (
+                        <Alert severity="error" sx={{ mb: 2 }}>
+                            {error}
+                        </Alert>
+                    )}
+
+                    <Grid container spacing={2}>
+                        <Grid item xs={12}>
+                            <TextField
+                                autoFocus
+                                fullWidth
+                                label="Project Name"
+                                variant="outlined"
+                                placeholder="e.g., My Awesome Landing Page"
+                                value={formData.name}
+                                onChange={handleInputChange('name')}
+                                onKeyPress={(e) => {
+                                    if (e.key === 'Enter' && !creatingProject && formData.name.trim()) {
+                                        handleConfirmCreate();
+                                    }
+                                }}
+                                disabled={creatingProject}
+                                required
+                                error={!formData.name.trim() && error !== ''}
+                            />
+                        </Grid>
+
+                        <Grid item xs={12}>
+                            <TextField
+                                fullWidth
+                                label="Description (Optional)"
+                                variant="outlined"
+                                placeholder="Brief description of your project"
+                                value={formData.description}
+                                onChange={handleInputChange('description')}
+                                disabled={creatingProject}
+                                multiline
+                                rows={2}
+                            />
+                        </Grid>
+
+                        <Grid item xs={12}>
+                            <Typography variant="subtitle2" gutterBottom sx={{ mt: 1 }}>
+                                Theme Colors
+                            </Typography>
+                        </Grid>
+
+                        <Grid item xs={12} sm={4}>
+                            <Box>
+                                <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+                                    Primary Color
+                                </Typography>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <TextField
+                                        type="color"
+                                        value={formData.primaryColor}
+                                        onChange={handleInputChange('primaryColor')}
+                                        disabled={creatingProject}
+                                        sx={{ width: 60 }}
+                                    />
+                                    <TextField
+                                        size="small"
+                                        value={formData.primaryColor}
+                                        onChange={handleInputChange('primaryColor')}
+                                        disabled={creatingProject}
+                                        sx={{ flex: 1 }}
+                                    />
+                                </Box>
+                            </Box>
+                        </Grid>
+
+                        <Grid item xs={12} sm={4}>
+                            <Box>
+                                <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+                                    Secondary Color
+                                </Typography>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <TextField
+                                        type="color"
+                                        value={formData.secondaryColor}
+                                        onChange={handleInputChange('secondaryColor')}
+                                        disabled={creatingProject}
+                                        sx={{ width: 60 }}
+                                    />
+                                    <TextField
+                                        size="small"
+                                        value={formData.secondaryColor}
+                                        onChange={handleInputChange('secondaryColor')}
+                                        disabled={creatingProject}
+                                        sx={{ flex: 1 }}
+                                    />
+                                </Box>
+                            </Box>
+                        </Grid>
+
+                        <Grid item xs={12} sm={4}>
+                            <Box>
+                                <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+                                    Background Color
+                                </Typography>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <TextField
+                                        type="color"
+                                        value={formData.backgroundColor}
+                                        onChange={handleInputChange('backgroundColor')}
+                                        disabled={creatingProject}
+                                        sx={{ width: 60 }}
+                                    />
+                                    <TextField
+                                        size="small"
+                                        value={formData.backgroundColor}
+                                        onChange={handleInputChange('backgroundColor')}
+                                        disabled={creatingProject}
+                                        sx={{ flex: 1 }}
+                                    />
+                                </Box>
+                            </Box>
+                        </Grid>
+
+                        <Grid item xs={12}>
+                            <FormControl fullWidth>
+                                <InputLabel>Font Family</InputLabel>
+                                <Select
+                                    value={formData.font}
+                                    onChange={handleInputChange('font')}
+                                    disabled={creatingProject}
+                                    label="Font Family"
+                                >
+                                    <SelectMenuItem value="Inter">Inter</SelectMenuItem>
+                                    <SelectMenuItem value="Roboto">Roboto</SelectMenuItem>
+                                    <SelectMenuItem value="Open Sans">Open Sans</SelectMenuItem>
+                                    <SelectMenuItem value="Lato">Lato</SelectMenuItem>
+                                    <SelectMenuItem value="Montserrat">Montserrat</SelectMenuItem>
+                                    <SelectMenuItem value="Poppins">Poppins</SelectMenuItem>
+                                    <SelectMenuItem value="Arial">Arial</SelectMenuItem>
+                                </Select>
+                            </FormControl>
+                        </Grid>
+                    </Grid>
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                    <Button onClick={handleDialogClose} disabled={creatingProject}>
+                        Cancel
+                    </Button>
                     <Button
                         onClick={handleConfirmCreate}
                         variant="contained"
-                        disabled={!projectName.trim()}
+                        disabled={!formData.name.trim() || creatingProject}
+                        startIcon={creatingProject ? <CircularProgress size={20} color="inherit" /> : <Add />}
                     >
-                        Create & Open
+                        {creatingProject ? 'Creating...' : 'Create & Open'}
                     </Button>
                 </DialogActions>
             </Dialog>
 
-            {/* Storage Error Snackbar */}
             <Snackbar
                 open={snackbarOpen}
                 autoHideDuration={6000}
                 onClose={handleCloseSnackbar}
                 anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
             >
-                <Alert 
-                    onClose={handleCloseSnackbar} 
-                    severity={storageError?.includes('limit') || storageError?.includes('quota') ? 'error' : 'warning'} 
+                <Alert
+                    onClose={handleCloseSnackbar}
+                    severity={snackbarSeverity}
                     sx={{ width: '100%' }}
                 >
-                    {storageError}
+                    {snackbarMessage}
                 </Alert>
             </Snackbar>
         </Box>

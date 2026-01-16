@@ -57,7 +57,7 @@ function Header() {
     ];
 
     const handleGetStarted = () => {
-        navigate('/dashboard');
+        navigate('/login');
     }
     const handleLogin = () => {
         navigate('/login');

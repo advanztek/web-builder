@@ -9,7 +9,7 @@ const DashboardRoutes = () => {
       <Routes>
         <Route index element={<Dashboard />} />
 
-        <Route path="editor" element={<EditorPage />} />
+        <Route path="editor/:id" element={<EditorPage />} />
       </Routes>
     </DashboardLayout>
   );
