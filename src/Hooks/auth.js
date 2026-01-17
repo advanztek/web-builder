@@ -91,6 +91,7 @@ export const useLogin = () => {
     setLoading(true);
     try {
       const result = await apiCall('/auth/login', data);
+      console.log('LOGIN RESPONSE:', result);
 
       localStorage.setItem('token', result.result.token);
       localStorage.setItem('user', JSON.stringify(result.result.user));
@@ -112,10 +113,82 @@ export const useLogin = () => {
 
 export const useGoogleAuth = () => {
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   const loginWithGoogle = () => {
     setLoading(true);
-    window.location.href = `${BASE_SERVER_URL}/auth/google`;
+
+    const googleAuthUrl = `${BASE_SERVER_URL}/auth/google`;
+    const width = 500;
+    const height = 600;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+    
+    const popup = window.open(
+      googleAuthUrl,
+      'Google Sign In',
+      `width=${width},height=${height},left=${left},top=${top}`
+    );
+
+    // Listen for messages from the popup
+    const handleMessage = (event) => {
+      // Verify the origin of the message
+      if (event.origin !== window.location.origin && !event.origin.includes(BASE_SERVER_URL)) {
+        return;
+      }
+
+      const { type, data } = event.data;
+
+      if (type === 'GOOGLE_AUTH_SUCCESS') {
+        // Close the popup
+        if (popup) {
+          popup.close();
+        }
+
+        // Extract token and user
+        const { token, user } = data.result || {};
+
+        if (token) {
+          // Store token
+          localStorage.setItem('token', token);
+          localStorage.setItem('authToken', token);
+          localStorage.setItem('user', JSON.stringify(user));
+
+          showToast.success(`Welcome ${user?.firstname || user?.email || 'back'}!`);
+          
+          // Navigate to dashboard
+          navigate('/dashboard', { replace: true });
+        }
+
+        setLoading(false);
+        window.removeEventListener('message', handleMessage);
+      } else if (type === 'GOOGLE_AUTH_ERROR') {
+        if (popup) {
+          popup.close();
+        }
+        showToast.error(data?.message || "Google login failed");
+        setLoading(false);
+        window.removeEventListener('message', handleMessage);
+      }
+    };
+
+    // Add event listener for messages
+    window.addEventListener('message', handleMessage);
+
+    // Check if popup was blocked
+    if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+      showToast.error('Popup blocked! Please allow popups for this site.');
+      setLoading(false);
+      window.removeEventListener('message', handleMessage);
+    }
+
+    // Fallback: if popup doesn't send message within 60 seconds
+    setTimeout(() => {
+      if (loading) {
+        setLoading(false);
+        window.removeEventListener('message', handleMessage);
+      }
+    }, 60000);
   };
 
   return { loginWithGoogle, loading };

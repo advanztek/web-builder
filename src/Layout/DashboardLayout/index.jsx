@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { Box } from '@mui/material';
 import Sidebar from '../../Components/SideBar';
 import DashboardNav from '../../Components/DashboardNav';
+import { Outlet } from 'react-router-dom';
 
 function DashboardLayout({ children }) {
   const location = useLocation();
@@ -33,7 +34,7 @@ function DashboardLayout({ children }) {
             transition: 'background-color 0.3s ease',
           }}
         >
-          {children}
+          <Outlet />
         </Box>
       </Box>
     </>

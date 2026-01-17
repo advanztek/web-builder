@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -49,6 +50,8 @@ import {
     ContentCopy,
     OpenInNew,
     Refresh,
+    AutoAwesome,
+    EditNote,
 } from '@mui/icons-material';
 import { FONT_FAMILY } from '../../Config/font';
 import {
@@ -269,8 +272,12 @@ const ProjectsTable = () => {
 
     const handleOpenProject = (project) => {
         dispatch(setActiveProject(project.id));
-        // Navigate to editor with project ID in URL
-        navigate(`/dashboard/editor/${project.id}`);
+
+        // Use slug if available, otherwise fall back to id
+        const identifier = project.slug || project.data?.slug || project.id;
+
+        // Navigate to editor route with slug
+        navigate(`/dashboard/editor/${identifier}`);
         handleMenuClose();
     };
 
@@ -342,22 +349,18 @@ const ProjectsTable = () => {
     };
 
     const getProjectStatus = (project) => {
-        // Check if project.data exists and has a status field (string)
         if (project.data && typeof project.data.status === 'string') {
             return project.data.status.charAt(0).toUpperCase() + project.data.status.slice(1);
         }
 
-        // Check if project has a direct status field (string)
         if (typeof project.status === 'string') {
             return project.status.charAt(0).toUpperCase() + project.status.slice(1);
         }
 
-        // Check for boolean status (active/inactive from backend)
         if (typeof project.status === 'boolean') {
             return project.status ? 'Active' : 'Inactive';
         }
 
-        // Fallback: determine status based on content and dates
         if (project.gjsData || project.sections) {
             const updateTime = project.updatedAt || project.updated_at;
             if (!updateTime) return 'New';
@@ -593,7 +596,10 @@ const Dashboard = () => {
     const reduxProjects = useSelector(state => state.projects.projects);
     const projectsList = useMemo(() => Object.values(reduxProjects), [reduxProjects]);
 
-    const [createDialogOpen, setCreateDialogOpen] = useState(false);
+    // Modal states
+    const [choiceDialogOpen, setChoiceDialogOpen] = useState(false);
+    const [manualDialogOpen, setManualDialogOpen] = useState(false);
+
     const [formData, setFormData] = useState({
         name: '',
         description: '',
@@ -616,10 +622,63 @@ const Dashboard = () => {
     };
 
     const handleCreateProject = () => {
-        setCreateDialogOpen(true);
+        setChoiceDialogOpen(true);
     };
 
-    const handleConfirmCreate = async () => {
+    const handleChoiceClose = () => {
+        setChoiceDialogOpen(false);
+    };
+
+    const handleChoiceAI = async () => {
+        setChoiceDialogOpen(false);
+
+        // Create project with minimal data and navigate to prompts page
+        try {
+            const projectData = {
+                name: `Project ${projectsList.length + 1}`,
+                description: 'AI Generated Project',
+                primaryColor: '#1976d2',
+                secondaryColor: '#0F172A',
+                backgroundColor: '#FFFFFF',
+                font: 'Inter',
+                mode: 'prompt' // Add mode for API
+            };
+
+            const result = await createProject(projectData);
+
+            if (result) {
+                const identifier = result.slug || result.data?.slug || result.id;
+                navigate(`/dashboard/prompts/${identifier}`);
+            }
+        } catch (err) {
+            console.error('Error creating project:', err);
+            setSnackbarMessage(err.message || 'Failed to create project');
+            setSnackbarSeverity('error');
+            setSnackbarOpen(true);
+        }
+    };
+
+    const handleChoiceManual = () => {
+        setChoiceDialogOpen(false);
+        setManualDialogOpen(true);
+    };
+
+    const handleManualDialogClose = () => {
+        if (!creatingProject) {
+            setManualDialogOpen(false);
+            setError('');
+            setFormData({
+                name: '',
+                description: '',
+                primaryColor: '#1976d2',
+                secondaryColor: '#0F172A',
+                backgroundColor: '#FFFFFF',
+                font: 'Inter'
+            });
+        }
+    };
+
+    const handleConfirmManualCreate = async () => {
         if (!formData.name.trim()) {
             setError('Project name is required');
             return;
@@ -635,9 +694,8 @@ const Dashboard = () => {
                 secondaryColor: formData.secondaryColor,
                 backgroundColor: formData.backgroundColor,
                 font: formData.font,
+                mode: 'manual' // Add mode for API
             };
-
-            console.log('Creating project with data:', projectData);
 
             const result = await createProject(projectData);
 
@@ -650,11 +708,15 @@ const Dashboard = () => {
                     backgroundColor: '#FFFFFF',
                     font: 'Inter'
                 });
-                setCreateDialogOpen(false);
+                setManualDialogOpen(false);
 
                 setSnackbarMessage('Project created successfully!');
                 setSnackbarSeverity('success');
                 setSnackbarOpen(true);
+
+                // Navigate to editor with slug
+                const identifier = result.slug || result.data?.slug || result.id;
+                navigate(`/dashboard/editor/${identifier}`);
             }
         } catch (err) {
             console.error('Error creating project:', err);
@@ -662,21 +724,6 @@ const Dashboard = () => {
             setSnackbarMessage(err.message || 'Failed to create project');
             setSnackbarSeverity('error');
             setSnackbarOpen(true);
-        }
-    };
-
-    const handleDialogClose = () => {
-        if (!creatingProject) {
-            setCreateDialogOpen(false);
-            setError('');
-            setFormData({
-                name: '',
-                description: '',
-                primaryColor: '#1976d2',
-                secondaryColor: '#0F172A',
-                backgroundColor: '#FFFFFF',
-                font: 'Inter'
-            });
         }
     };
 
@@ -841,9 +888,95 @@ const Dashboard = () => {
                 </div>
             </Box>
 
+            {/* Choice Dialog - AI or Manual */}
             <Dialog
-                open={createDialogOpen}
-                onClose={handleDialogClose}
+                open={choiceDialogOpen}
+                onClose={handleChoiceClose}
+                maxWidth="sm"
+                fullWidth
+            >
+                <DialogTitle sx={{ textAlign: 'center', pb: 1 }}>
+                    Choose Creation Method
+                </DialogTitle>
+                <DialogContent sx={{ pt: 3, pb: 3 }}>
+                    <Grid container spacing={3}>
+                        <Grid size={{ xs: 12, sm: 6 }}>
+                            <Card
+                                sx={{
+                                    height: '100%',
+                                    cursor: 'pointer',
+                                    border: `2px solid ${theme.palette.divider}`,
+                                    transition: 'all 0.3s ease',
+                                    '&:hover': {
+                                        borderColor: theme.palette.primary.main,
+                                        transform: 'translateY(-4px)',
+                                        boxShadow: theme.shadows[4],
+                                    },
+                                }}
+                                onClick={handleChoiceAI}
+                            >
+                                <CardContent sx={{ textAlign: 'center', py: 4 }}>
+                                    <AutoAwesome
+                                        sx={{
+                                            fontSize: 64,
+                                            color: theme.palette.primary.main,
+                                            mb: 2,
+                                        }}
+                                    />
+                                    <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+                                        AI Prompts
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                        Let AI help you build your project with intelligent prompts
+                                    </Typography>
+                                </CardContent>
+                            </Card>
+                        </Grid>
+                        <Grid size={{ xs: 12, sm: 6 }}>
+                            <Card
+                                sx={{
+                                    height: '100%',
+                                    cursor: 'pointer',
+                                    border: `2px solid ${theme.palette.divider}`,
+                                    transition: 'all 0.3s ease',
+                                    '&:hover': {
+                                        borderColor: theme.palette.secondary.main,
+                                        transform: 'translateY(-4px)',
+                                        boxShadow: theme.shadows[4],
+                                    },
+                                }}
+                                onClick={handleChoiceManual}
+                            >
+                                <CardContent sx={{ textAlign: 'center', py: 4 }}>
+                                    <EditNote
+                                        sx={{
+                                            fontSize: 64,
+                                            color: theme.palette.secondary.main,
+                                            mb: 2,
+                                        }}
+                                    />
+                                    <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+                                        Manual Setup
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary">
+                                        Configure your project settings manually
+                                    </Typography>
+                                </CardContent>
+                            </Card>
+                        </Grid>
+                    </Grid>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                    <Button onClick={handleChoiceClose}>
+                        Cancel
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Manual Creation Dialog */}
+            <Dialog
+                open={manualDialogOpen}
+                onClose={handleManualDialogClose}
                 maxWidth="md"
                 fullWidth
             >
@@ -856,7 +989,7 @@ const Dashboard = () => {
                     )}
 
                     <Grid container spacing={2}>
-                        <Grid item xs={12}>
+                        <Grid size={{ xs: 12 }}>
                             <TextField
                                 autoFocus
                                 fullWidth
@@ -867,7 +1000,7 @@ const Dashboard = () => {
                                 onChange={handleInputChange('name')}
                                 onKeyPress={(e) => {
                                     if (e.key === 'Enter' && !creatingProject && formData.name.trim()) {
-                                        handleConfirmCreate();
+                                        handleConfirmManualCreate();
                                     }
                                 }}
                                 disabled={creatingProject}
@@ -876,7 +1009,7 @@ const Dashboard = () => {
                             />
                         </Grid>
 
-                        <Grid item xs={12}>
+                        <Grid size={{ xs: 12 }}>
                             <TextField
                                 fullWidth
                                 label="Description (Optional)"
@@ -890,13 +1023,13 @@ const Dashboard = () => {
                             />
                         </Grid>
 
-                        <Grid item xs={12}>
+                        <Grid size={{ xs: 12 }}>
                             <Typography variant="subtitle2" gutterBottom sx={{ mt: 1 }}>
                                 Theme Colors
                             </Typography>
                         </Grid>
 
-                        <Grid item xs={12} sm={4}>
+                        <Grid size={{ xs: 12, sm: 4 }}>
                             <Box>
                                 <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
                                     Primary Color
@@ -920,7 +1053,7 @@ const Dashboard = () => {
                             </Box>
                         </Grid>
 
-                        <Grid item xs={12} sm={4}>
+                        <Grid size={{ xs: 12, sm: 4 }}>
                             <Box>
                                 <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
                                     Secondary Color
@@ -944,7 +1077,7 @@ const Dashboard = () => {
                             </Box>
                         </Grid>
 
-                        <Grid item xs={12} sm={4}>
+                        <Grid size={{ xs: 12, sm: 4 }}>
                             <Box>
                                 <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
                                     Background Color
@@ -968,7 +1101,7 @@ const Dashboard = () => {
                             </Box>
                         </Grid>
 
-                        <Grid item xs={12}>
+                        <Grid size={{ xs: 12 }}>
                             <FormControl fullWidth>
                                 <InputLabel>Font Family</InputLabel>
                                 <Select
@@ -990,11 +1123,11 @@ const Dashboard = () => {
                     </Grid>
                 </DialogContent>
                 <DialogActions sx={{ px: 3, pb: 2 }}>
-                    <Button onClick={handleDialogClose} disabled={creatingProject}>
+                    <Button onClick={handleManualDialogClose} disabled={creatingProject}>
                         Cancel
                     </Button>
                     <Button
-                        onClick={handleConfirmCreate}
+                        onClick={handleConfirmManualCreate}
                         variant="contained"
                         disabled={!formData.name.trim() || creatingProject}
                         startIcon={creatingProject ? <CircularProgress size={20} color="inherit" /> : <Add />}
@@ -1022,4 +1155,4 @@ const Dashboard = () => {
     );
 };
 
-export default Dashboard;
+export default Dashboard

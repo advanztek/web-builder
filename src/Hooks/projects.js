@@ -390,7 +390,6 @@ export const useUpdateProject = () => {
     return { updateProject, loading };
 };
 
-
 export const useDeleteProject = () => {
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
@@ -424,4 +423,78 @@ export const useDeleteProject = () => {
     };
 
     return { deleteProject, loading };
+};
+
+export const useGetProjectBySlug = () => {
+    const [loading, setLoading] = useState(false);
+    const [project, setProject] = useState(null);
+
+    const getProjectBySlug = async (slug) => {
+        if (!slug) {
+            console.error('No slug provided');
+            return null;
+        }
+
+        setLoading(true);
+
+        try {
+            console.log('Fetching project by slug:', slug);
+            const res = await apiCall('/user/projects', null, 'GET');
+
+            if (!res?.success) {
+                throw new Error(res?.message || "Failed to fetch projects");
+            }
+
+            const projectsData = res.result || res.data || [];
+            
+            console.log('All projects:', projectsData);
+            
+            // Find project by slug - check multiple possible locations
+            const foundProject = projectsData.find(p => {
+                const projectSlug = p.data?.slug || p.slug;
+                const projectId = String(p.id);
+                const slugStr = String(slug);
+                
+                console.log(`Comparing: ${projectSlug} === ${slugStr} OR ${projectId} === ${slugStr}`);
+                
+                // Match by slug OR by id (in case slug is actually an id)
+                return projectSlug === slugStr || projectId === slugStr;
+            });
+
+            if (!foundProject) {
+                console.error('Project not found. Available projects:', projectsData.map(p => ({
+                    id: p.id,
+                    slug: p.data?.slug || p.slug,
+                    name: p.data?.name || p.name
+                })));
+                throw new Error('Project not found');
+            }
+
+            console.log('Found project:', foundProject);
+
+            // Normalize the project
+            const normalizedProject = normalizeProject(foundProject);
+            
+            setProject(normalizedProject);
+            console.log('Loaded project by slug:', normalizedProject);
+            return normalizedProject;
+        } catch (err) {
+            console.error("GET PROJECT BY SLUG ERROR:", err);
+
+            if (err.message?.includes('Unauthorized')) {
+                showToast.error('Session expired. Please log in again.');
+            } else if (err.message?.includes('not found')) {
+                showToast.error('Project not found');
+            } else {
+                showToast.error(err.message || "Failed to fetch project");
+            }
+
+            setProject(null);
+            return null;
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return { getProjectBySlug, project, loading };
 };

@@ -1,5 +1,5 @@
 import { Routes, Route } from "react-router-dom";
-import { DocumentationPage, ForgotPasswordPage, ResetPasswordPage, HomePage, LoginPage, RegisterPage, Sample, TemplatesPage, VerifyEmailPage } from "../Pages/Public";
+import { DocumentationPage, ForgotPasswordPage, GoogleCallback, ResetPasswordPage, HomePage, LoginPage, RegisterPage, Sample, TemplatesPage, VerifyEmailPage } from "../Pages/Public";
 import PublicLayout from "../Layout/PublicLayout";
 
 const PublicRoutes = () => {
@@ -16,6 +16,8 @@ const PublicRoutes = () => {
                     <Route path="/verify-email" element={<VerifyEmailPage />} />
                     <Route path="/template" element={<TemplatesPage />} />
                     <Route path="/documentation" element={<DocumentationPage />} />
+                    <Route path="/auth/google/callback" element={<GoogleCallback />} />
+
                 </Route>
             </Routes>
         </PublicLayout>
