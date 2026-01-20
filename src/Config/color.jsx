@@ -63,7 +63,7 @@ export const lightModeColors = {
 
 export const darkModeColors = {
   primary: {
-    main: '#90caf9',
+    main: '#42a5f5',
     light: '#e3f2fd',
     dark: '#42a5f5',
     contrastText: 'rgba(0, 0, 0, 0.87)',

@@ -1,829 +1,578 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import {
-    Box,
-    Container,
-    Typography,
-    Button,
-    TextField,
-    Chip,
-    IconButton,
-    useTheme,
-    useMediaQuery,
-    CircularProgress,
-    Alert,
-    Snackbar,
-    Paper,
+  Box,
+  Container,
+  Typography,
+  Button,
+  TextField,
+  Chip,
+  IconButton,
+  CircularProgress,
+  Alert,
+  Snackbar,
+  Paper,
+  Backdrop,
 } from '@mui/material';
 import {
-    Attach20Regular,
-    BookOpen20Regular,
-    Mic20Regular,
-} from '@fluentui/react-icons';
-import { ArrowUpward, ArrowBack, Close, PictureAsPdf, Image } from '@mui/icons-material';
-import { useGetProjectBySlug, useUpdateProject } from '../../../Hooks/projects';
+  ArrowUpward,
+  ArrowBack,
+  Close,
+  PictureAsPdf,
+  AttachFile,
+  Book,
+  Mic,
+  InsertDriveFile,
+} from '@mui/icons-material';
+
+import { useCreateProject } from '../../../Hooks/projects';
 import { setActiveProject } from '../../../Store/slices/projectsSlice';
 
-const TypewriterPlaceholder = ({ theme }) => {
-    const texts = [
-        "Build a modern e-commerce platform with shopping cart and payment integration...",
-        "Create a portfolio website with animated transitions and dark mode...",
-        "Design a restaurant website with online ordering and reservation system...",
-        "Develop a fitness tracking app with workout plans and progress charts...",
-        "Build a social media dashboard with real-time analytics and notifications...",
-    ];
+// ---------------- SLUG / NAME HELPERS ----------------
+const slugify = (text = '') =>
+  text
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, '')
+    .replace(/\s+/g, '-')
+    .slice(0, 32) || 'website';
 
-    const [textIndex, setTextIndex] = useState(0);
-    const [displayText, setDisplayText] = useState('');
-    const [charIndex, setCharIndex] = useState(0);
-    const [isDeleting, setIsDeleting] = useState(false);
-
-    useEffect(() => {
-        const currentText = texts[textIndex];
-        const typingSpeed = isDeleting ? 30 : 50;
-        const pauseBeforeDelete = 2000;
-        const pauseBeforeNext = 500;
-
-        if (!isDeleting && charIndex < currentText.length) {
-            const timer = setTimeout(() => {
-                setDisplayText(currentText.slice(0, charIndex + 1));
-                setCharIndex(charIndex + 1);
-            }, typingSpeed);
-            return () => clearTimeout(timer);
-        } else if (!isDeleting && charIndex === currentText.length) {
-            const timer = setTimeout(() => {
-                setIsDeleting(true);
-            }, pauseBeforeDelete);
-            return () => clearTimeout(timer);
-        } else if (isDeleting && charIndex > 0) {
-            const timer = setTimeout(() => {
-                setDisplayText(currentText.slice(0, charIndex - 1));
-                setCharIndex(charIndex - 1);
-            }, typingSpeed);
-            return () => clearTimeout(timer);
-        } else if (isDeleting && charIndex === 0) {
-            const timer = setTimeout(() => {
-                setIsDeleting(false);
-                setTextIndex((textIndex + 1) % texts.length);
-            }, pauseBeforeNext);
-            return () => clearTimeout(timer);
-        }
-    }, [charIndex, isDeleting, textIndex, texts]);
-
-    return (
-        <Box
-            sx={{
-                color: theme.palette.text.disabled,
-                fontSize: { xs: '14px', md: '16px' },
-                fontFamily: 'inherit',
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-            }}
-        >
-            {displayText}
-            <Box
-                component="span"
-                sx={{
-                    display: 'inline-block',
-                    width: '2px',
-                    height: '1em',
-                    backgroundColor: theme.palette.text.disabled,
-                    marginLeft: '2px',
-                    animation: 'blink 1s infinite',
-                    '@keyframes blink': {
-                        '0%, 49%': { opacity: 1 },
-                        '50%, 100%': { opacity: 0 },
-                    },
-                }}
-            />
-        </Box>
-    );
+const deriveWebsiteName = (prompt = '') => {
+  if (!prompt.trim()) return 'AI Website';
+  const words = prompt
+    .replace(/[^a-zA-Z0-9 ]/g, '')
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 4)
+    .join(' ');
+  return words || 'AI Website';
 };
 
+const fileToBase64 = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+// ---------------- TYPEWRITER PLACEHOLDER ----------------
+const TypewriterPlaceholder = () => {
+  const texts = [
+    'Build a modern e-commerce platform with shopping cart and payment integration...',
+    'Create a portfolio website with animated transitions and dark mode...',
+    'Design a restaurant website with online ordering and reservation system...',
+    'Develop a fitness tracking app with workout plans and progress charts...',
+    'Build a social media dashboard with real-time analytics and notifications...',
+  ];
+
+  const [textIndex, setTextIndex] = useState(0);
+  const [displayText, setDisplayText] = useState('');
+  const [charIndex, setCharIndex] = useState(0);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  useEffect(() => {
+    const currentText = texts[textIndex];
+    const typingSpeed = isDeleting ? 30 : 50;
+
+    if (!isDeleting && charIndex < currentText.length) {
+      const timer = setTimeout(() => {
+        setDisplayText(currentText.slice(0, charIndex + 1));
+        setCharIndex(charIndex + 1);
+      }, typingSpeed);
+      return () => clearTimeout(timer);
+    }
+
+    if (!isDeleting && charIndex === currentText.length) {
+      const timer = setTimeout(() => setIsDeleting(true), 2000);
+      return () => clearTimeout(timer);
+    }
+
+    if (isDeleting && charIndex > 0) {
+      const timer = setTimeout(() => {
+        setDisplayText(currentText.slice(0, charIndex - 1));
+        setCharIndex(charIndex - 1);
+      }, typingSpeed);
+      return () => clearTimeout(timer);
+    }
+
+    if (isDeleting && charIndex === 0) {
+      const timer = setTimeout(() => {
+        setIsDeleting(false);
+        setTextIndex((textIndex + 1) % texts.length);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [charIndex, isDeleting, textIndex]);
+
+  return (
+    <Box sx={{ color: 'rgba(255,255,255,0.4)', fontSize: 16 }}>
+      {displayText}
+      <Box
+        component="span"
+        sx={{
+          display: 'inline-block',
+          width: '2px',
+          height: '1em',
+          backgroundColor: 'rgba(255,255,255,0.4)',
+          ml: 0.5,
+          animation: 'blink 1s infinite',
+          '@keyframes blink': {
+            '0%, 49%': { opacity: 1 },
+            '50%, 100%': { opacity: 0 },
+          },
+        }}
+      />
+    </Box>
+  );
+};
+
+// ---------------- MAIN PROMPTS PAGE ----------------
 const PromptsPage = () => {
-    const theme = useTheme();
-    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-    const { slug } = useParams();
-    const navigate = useNavigate();
-    const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const fileInputRef = useRef(null);
 
-    const { getProjectBySlug, project, loading } = useGetProjectBySlug();
-    const { updateProject, loading: updating } = useUpdateProject();
+  const { createProject } = useCreateProject();
 
-    const fileInputRef = useRef(null);
-    const [error, setError] = useState(null);
-    const [activeTab, setActiveTab] = useState('apps');
-    const [inputValue, setInputValue] = useState('');
-    const [showAllSuggestions, setShowAllSuggestions] = useState(false);
-    const [uploadedFiles, setUploadedFiles] = useState([]);
-    const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
-    const [isRecording, setIsRecording] = useState(false);
+  const [inputValue, setInputValue] = useState('');
+  const [showAllSuggestions, setShowAllSuggestions] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
+  const [isRecording, setIsRecording] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
 
-    const suggestions = [
-        'Modern SaaS Landing Page',
-        'Corporate Business Website',
-        'Creative Portfolio Website',
-        'Restaurant Website',
-        'Healthcare Clinic Website',
-        'Digital Marketing Agency',
-        'Real Estate Website',
-        'Fitness & Wellness Website',
-        'Educational Platform',
-        'E-commerce Store',
-        'Travel Booking Website',
-        'Music Streaming App',
-        'Project Management Tool',
-        'Food Delivery App',
-        'Social Networking Site',
-        'Video Conference Platform'
-    ];
+  // ---------------- SUGGESTIONS ----------------
+  const suggestions = [
+    'Modern SaaS Landing Page',
+    'Corporate Business Website',
+    'Creative Portfolio Website',
+    'Restaurant Website',
+    'Healthcare Clinic Website',
+    'Digital Marketing Agency',
+    'Real Estate Website',
+    'Fitness & Wellness Website',
+    'Educational Platform',
+    'E-commerce Store',
+    'Travel Booking Website',
+    'Music Streaming App',
+    'Project Management Tool',
+    'Food Delivery App',
+    'Social Networking Site',
+    'Video Conference Platform',
+  ];
 
-    const initialDisplayCount = 6;
-    const displayedSuggestions = showAllSuggestions
-        ? suggestions
-        : suggestions.slice(0, initialDisplayCount);
+  const displayedSuggestions = showAllSuggestions
+    ? suggestions
+    : suggestions.slice(0, 6);
 
-    useEffect(() => {
-        const loadProject = async () => {
-            try {
-                setError(null);
-                const loadedProject = await getProjectBySlug(slug);
+  // ---------------- FILES ----------------
+  const handleFileUpload = async (event) => {
+    const files = Array.from(event.target.files);
+    const validFiles = [];
 
-                if (loadedProject) {
-                    dispatch(setActiveProject(loadedProject.id));
-                    if (loadedProject.seo?.description) {
-                        setInputValue(loadedProject.seo.description);
-                    }
-                } else {
-                    setError('Project not found');
-                }
-            } catch (err) {
-                console.error('Error loading project:', err);
-                setError(err.message || 'Failed to load project');
-            }
-        };
+    for (const file of files) {
+      const base64 = await fileToBase64(file);
+      validFiles.push({
+        id: Date.now() + Math.random(),
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        data: base64,
+        preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+        isPDF: file.type === 'application/pdf',
+      });
+    }
 
-        if (slug) {
-            loadProject();
+    setUploadedFiles((prev) => [...prev, ...validFiles]);
+  };
+
+  const handleRemoveFile = (id) => {
+    setUploadedFiles((prev) => prev.filter((f) => f.id !== id));
+  };
+
+  // ---------------- VOICE ----------------
+  const handleVoiceRecord = () => {
+    setIsRecording(true);
+    setTimeout(() => setIsRecording(false), 2000);
+  };
+
+  // ---------------- AI GENERATE - BACKEND SCHEMA COMPLIANT ----------------
+  const handleGenerate = async () => {
+    if (isGenerating) return;
+
+    // Validate input
+    const prompt = inputValue.trim();
+    
+    if (!prompt && uploadedFiles.length === 0) {
+      setSnackbar({
+        open: true,
+        message: 'Please enter a prompt or upload files',
+        severity: 'warning'
+      });
+      return;
+    }
+
+    // Backend requires minimum 10 characters for prompt
+    if (prompt.length < 10) {
+      setSnackbar({
+        open: true,
+        message: 'Prompt must be at least 10 characters long',
+        severity: 'warning'
+      });
+      return;
+    }
+
+    setIsGenerating(true);
+    setLoadingMessage('AI is creating your project...');
+
+    const websiteName = deriveWebsiteName(prompt);
+
+    console.log('🚀 STARTING PROJECT CREATION');
+    console.log('Prompt length:', prompt.length);
+    console.log('Website name:', websiteName);
+
+    try {
+      // EXACT BACKEND SCHEMA COMPLIANT PAYLOAD
+      const payload = {
+        mode: "prompt",
+        prompt: prompt,  // min 10, max 5000 characters
+        websiteName: websiteName,
+        websiteType: "ai-generated", // optional
+        pages: ["Home"], // optional array of strings
+        theme: {
+          font: "Inter",
+          primaryColor: "#1976d2",
+          secondaryColor: "#0F172A",
+          backgroundColor: "#FFFFFF"
         }
-    }, [slug]);
+      };
 
-    const handleBack = () => {
-        navigate('/dashboard');
-    };
+      // Add files if any
+      if (uploadedFiles.length > 0) {
+        payload.files = uploadedFiles.map((f) => ({
+          name: f.name,
+          type: f.type,
+          data: f.data  // Base64 string
+        }));
+      }
 
-    const handleFileUpload = (event) => {
-        const files = Array.from(event.target.files);
-        const validFiles = [];
-        const maxSize = 10 * 1024 * 1024; // 10MB
+      console.log('📤 PAYLOAD:', payload);
 
-        files.forEach(file => {
-            // Check file type
-            const isImage = file.type.startsWith('image/');
-            const isPDF = file.type === 'application/pdf';
+      const project = await createProject(payload);
 
-            if (!isImage && !isPDF) {
-                setSnackbar({
-                    open: true,
-                    message: `${file.name} is not a valid file type. Only images and PDFs are allowed.`,
-                    severity: 'error'
-                });
-                return;
-            }
+      if (project && project.id) {
+        console.log('✅ PROJECT CREATED:', project);
 
-            // Check file size
-            if (file.size > maxSize) {
-                setSnackbar({
-                    open: true,
-                    message: `${file.name} is too large. Maximum size is 10MB.`,
-                    severity: 'error'
-                });
-                return;
-            }
+        // Store in Redux
+        dispatch(setActiveProject(project.id));
 
-            validFiles.push({
-                file,
-                id: Date.now() + Math.random(),
-                name: file.name,
-                type: file.type,
-                size: file.size,
-                preview: isImage ? URL.createObjectURL(file) : null
-            });
-        });
+        // Store in sessionStorage for editor
+        sessionStorage.setItem('pending_project', JSON.stringify(project));
 
-        if (validFiles.length > 0) {
-            setUploadedFiles(prev => [...prev, ...validFiles]);
-            setSnackbar({
-                open: true,
-                message: `${validFiles.length} file(s) uploaded successfully`,
-                severity: 'success'
-            });
-        }
-
-        // Reset input
-        if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-        }
-    };
-
-    const handleRemoveFile = (fileId) => {
-        setUploadedFiles(prev => {
-            const updated = prev.filter(f => f.id !== fileId);
-            const removedFile = prev.find(f => f.id === fileId);
-            if (removedFile?.preview) {
-                URL.revokeObjectURL(removedFile.preview);
-            }
-            return updated;
-        });
-    };
-
-    const handleAttachClick = () => {
-        fileInputRef.current?.click();
-    };
-
-    const handleVoiceRecord = () => {
-        if (!isRecording) {
-            setIsRecording(true);
-            setSnackbar({
-                open: true,
-                message: 'Voice recording started...',
-                severity: 'info'
-            });
-            // TODO: Implement actual voice recording
-            setTimeout(() => {
-                setIsRecording(false);
-                setSnackbar({
-                    open: true,
-                    message: 'Voice recording feature coming soon!',
-                    severity: 'info'
-                });
-            }, 2000);
-        } else {
-            setIsRecording(false);
-        }
-    };
-
-    const handleGenerate = async () => {
-        if (!inputValue.trim() && uploadedFiles.length === 0) {
-            setSnackbar({
-                open: true,
-                message: 'Please enter a prompt or upload files',
-                severity: 'warning'
-            });
-            return;
-        }
-
-        if (!project) return;
-
+        // Store in localStorage as recent
         try {
-            const updatedData = {
-                ...project.data,
-                seo: {
-                    ...project.data.seo,
-                    description: inputValue.trim()
-                }
-            };
-
-            await updateProject(project.id, updatedData);
-            
-            console.log('Generating with:', {
-                prompt: inputValue,
-                files: uploadedFiles.map(f => ({ name: f.name, type: f.type }))
-            });
-
-            setSnackbar({
-                open: true,
-                message: 'Generation started!',
-                severity: 'success'
-            });
-
-            // TODO: Add your actual generation logic here
-        } catch (err) {
-            console.error('Error generating:', err);
-            setSnackbar({
-                open: true,
-                message: 'Failed to generate',
-                severity: 'error'
-            });
+          const recentProjects = JSON.parse(localStorage.getItem('recent_projects') || '[]');
+          recentProjects.unshift(project);
+          localStorage.setItem('recent_projects', JSON.stringify(recentProjects.slice(0, 10)));
+        } catch (e) {
+          console.warn('Could not store in localStorage');
         }
-    };
 
-    const handleCloseSnackbar = () => {
-        setSnackbar(prev => ({ ...prev, open: false }));
-    };
+        setSnackbar({
+          open: true,
+          message: 'Project created successfully!',
+          severity: 'success'
+        });
 
-    const formatFileSize = (bytes) => {
-        if (bytes === 0) return '0 Bytes';
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
-    };
+        setIsGenerating(false);
+        setLoadingMessage('');
 
-    if (loading) {
-        return (
-            <Box
-                sx={{
-                    minHeight: '100vh',
-                    background: `linear-gradient(135deg, 
-                        ${theme.palette.background.default} 0%, 
-                        ${theme.palette.primary.bg} 20%,
-                        #1a0b2e 40%,
-                        #2d1b4e 60%,
-                        ${theme.palette.primary.bg} 80%,
-                        ${theme.palette.background.default} 100%)`,
-                    display: 'flex',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                }}
-            >
-                <Box sx={{ textAlign: 'center' }}>
-                    <CircularProgress size={60} />
-                    <Typography variant="body1" sx={{ mt: 2, color: 'white' }}>
-                        Loading project...
-                    </Typography>
-                </Box>
-            </Box>
-        );
+        // Navigate to editor
+        const routeId = project.slug || project.id;
+        console.log('➡️ NAVIGATING TO:', `/dashboard/editor/${routeId}`);
+
+        setTimeout(() => {
+          navigate(`/dashboard/editor/${routeId}`, {
+            state: {
+              projectId: project.id,
+              createdProject: project,
+              fromPrompts: true
+            }
+          });
+        }, 500);
+
+      } else {
+        throw new Error('No project data returned from server');
+      }
+
+    } catch (err) {
+      console.error('❌ PROJECT CREATION ERROR:', err);
+
+      setSnackbar({
+        open: true,
+        message: err.message || 'Failed to create project. Please try again.',
+        severity: 'error'
+      });
+
+      setIsGenerating(false);
+      setLoadingMessage('');
     }
+  };
 
-    if (error || !project) {
-        return (
-            <Box
-                sx={{
-                    minHeight: '100vh',
-                    background: `linear-gradient(135deg, 
-                        ${theme.palette.background.default} 0%, 
-                        ${theme.palette.primary.bg} 20%,
-                        #1a0b2e 40%,
-                        #2d1b4e 60%,
-                        ${theme.palette.primary.bg} 80%,
-                        ${theme.palette.background.default} 100%)`,
-                    display: 'flex',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    px: 2,
-                }}
-            >
-                <Container maxWidth="md">
-                    <Alert
-                        severity="error"
-                        action={
-                            <Button color="inherit" size="small" onClick={handleBack}>
-                                Go Back
-                            </Button>
-                        }
-                    >
-                        {error || 'Project not found'}
-                    </Alert>
-                </Container>
-            </Box>
-        );
-    }
-
-    return (
-        <Box
-            sx={{
-                minHeight: '100vh',
-                background: `linear-gradient(135deg, 
-                    ${theme.palette.background.default} 0%, 
-                    ${theme.palette.primary.bg} 20%,
-                    #1a0b2e 40%,
-                    #2d1b4e 60%,
-                    ${theme.palette.primary.bg} 80%,
-                    ${theme.palette.background.default} 100%)`,
-                position: 'relative',
-                overflow: 'hidden',
-                '&::before': {
-                    content: '""',
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    backgroundImage: `radial-gradient(circle at 20% 30%, rgba(255, 99, 132, 0.15) 0%, transparent 50%),
-                           radial-gradient(circle at 80% 70%, rgba(54, 162, 235, 0.15) 0%, transparent 50%),
-                           radial-gradient(circle at 40% 80%, rgba(255, 206, 86, 0.1) 0%, transparent 50%)`,
-                    pointerEvents: 'none',
-                }
-            }}
-        >
-            <Container maxWidth="md" sx={{ position: 'relative', zIndex: 1, pt: { xs: 4, md: 8 }, pb: 4 }}>
-                {/* Hidden file input */}
-                <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*,.pdf"
-                    multiple
-                    style={{ display: 'none' }}
-                    onChange={handleFileUpload}
-                />
-
-                {/* Back Button */}
-                <Box sx={{ mb: 4 }}>
-                    <Button
-                        startIcon={<ArrowBack />}
-                        onClick={handleBack}
-                        sx={{
-                            color: 'white',
-                            '&:hover': {
-                                bgcolor: 'rgba(255, 255, 255, 0.1)',
-                            }
-                        }}
-                    >
-                        Back to Dashboard
-                    </Button>
-                </Box>
-
-                <Box sx={{ textAlign: 'center', mb: 6 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2, mb: 2 }}>
-                        <Typography
-                            variant={isMobile ? 'h4' : 'h2'}
-                            sx={{
-                                fontWeight: 'bold',
-                                background: `linear-gradient(135deg, #ff6b9d 0%, #feca57 50%, #48dbfb 100%)`,
-                                WebkitBackgroundClip: 'text',
-                                WebkitTextFillColor: 'transparent',
-                                lineHeight: 1.2,
-                            }}
-                        >
-                            {project.name}
-                        </Typography>
-                        <Chip
-                            label={(() => {
-                                if (typeof project.status === 'string') {
-                                    return project.status.toUpperCase();
-                                }
-                                if (typeof project.status === 'boolean') {
-                                    return project.status ? 'ACTIVE' : 'INACTIVE';
-                                }
-                                if (project.data?.status && typeof project.data.status === 'string') {
-                                    return project.data.status.toUpperCase();
-                                }
-                                return 'DRAFT';
-                            })()}
-                            size="small"
-                            sx={{
-                                backgroundColor: (() => {
-                                    const status = typeof project.status === 'string' 
-                                        ? project.status 
-                                        : project.data?.status || 'draft';
-                                    return status.toLowerCase() === 'published' 
-                                        ? theme.palette.success.main 
-                                        : theme.palette.warning.main;
-                                })(),
-                                color: '#fff',
-                                fontWeight: 'bold',
-                                fontSize: '12px',
-                                height: '24px',
-                            }}
-                        />
-                    </Box>
-                    <Typography
-                        variant={isMobile ? 'body1' : 'h6'}
-                        sx={{
-                            color: 'rgba(255, 255, 255, 0.8)',
-                            mt: 2,
-                            fontWeight: 400,
-                        }}
-                    >
-                        {project.seo?.title || 'Design and build your project'}
-                    </Typography>
-                </Box>
-
-                <Box
-                    sx={{
-                        display: "flex",
-                        justifyContent: "center",
-                        width: "100%",
-                    }}
-                >
-                    <Box
-                        sx={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            mb: 4,
-                            p: 0.5,
-                            borderRadius: "999px",
-                            backgroundColor: theme.palette.background.paper,
-                            border: `1px solid ${theme.palette.divider}`,
-                        }}
-                    >
-                        {[
-                            { key: "apps", label: "Build Apps" },
-                            { key: "comic", label: "Create Comic Book" },
-                        ].map((tab) => {
-                            const isActive = activeTab === tab.key;
-
-                            return (
-                                <Box
-                                    key={tab.key}
-                                    onClick={() => setActiveTab(tab.key)}
-                                    sx={{
-                                        px: 3.5,
-                                        py: 1,
-                                        borderRadius: "999px",
-                                        cursor: "pointer",
-                                        fontSize: "14px",
-                                        fontWeight: 500,
-                                        whiteSpace: "nowrap",
-                                        transition: "all 0.25s ease",
-                                        backgroundColor: isActive
-                                            ? theme.palette.action.selected
-                                            : "transparent",
-                                        color: isActive
-                                            ? theme.palette.text.primary
-                                            : theme.palette.text.secondary,
-                                        "&:hover": {
-                                            backgroundColor: isActive
-                                                ? theme.palette.action.selected
-                                                : theme.palette.action.hover,
-                                        },
-                                    }}
-                                >
-                                    {tab.label}
-                                </Box>
-                            );
-                        })}
-                    </Box>
-                </Box>
-
-                {/* Uploaded Files Display */}
-                {uploadedFiles.length > 0 && (
-                    <Box sx={{ mb: 3 }}>
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                            {uploadedFiles.map((file) => (
-                                <Paper
-                                    key={file.id}
-                                    sx={{
-                                        p: 2,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: 2,
-                                        backgroundColor: theme.palette.background.paper,
-                                        border: `1px solid ${theme.palette.divider}`,
-                                        borderRadius: 2,
-                                        position: 'relative',
-                                        maxWidth: 250,
-                                    }}
-                                >
-                                    {file.preview ? (
-                                        <Box
-                                            component="img"
-                                            src={file.preview}
-                                            alt={file.name}
-                                            sx={{
-                                                width: 50,
-                                                height: 50,
-                                                objectFit: 'cover',
-                                                borderRadius: 1,
-                                            }}
-                                        />
-                                    ) : (
-                                        <PictureAsPdf sx={{ fontSize: 50, color: theme.palette.error.main }} />
-                                    )}
-                                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                                        <Typography
-                                            variant="body2"
-                                            noWrap
-                                            sx={{ fontWeight: 500 }}
-                                        >
-                                            {file.name}
-                                        </Typography>
-                                        <Typography variant="caption" color="text.secondary">
-                                            {formatFileSize(file.size)}
-                                        </Typography>
-                                    </Box>
-                                    <IconButton
-                                        size="small"
-                                        onClick={() => handleRemoveFile(file.id)}
-                                        sx={{
-                                            position: 'absolute',
-                                            top: 4,
-                                            right: 4,
-                                        }}
-                                    >
-                                        <Close fontSize="small" />
-                                    </IconButton>
-                                </Paper>
-                            ))}
-                        </Box>
-                    </Box>
-                )}
-
-                <Box
-                    sx={{
-                        backgroundColor: theme.palette.background.glass,
-                        backdropFilter: 'blur(10px)',
-                        borderRadius: 4,
-                        p: { xs: 2, md: 4 },
-                        border: `1px solid ${theme.palette.divider}`,
-                        mb: 4,
-                        position: 'relative',
-                    }}
-                >
-                    {!inputValue && uploadedFiles.length === 0 && (
-                        <Box
-                            sx={{
-                                position: 'absolute',
-                                top: { xs: 16, md: 32 },
-                                left: { xs: 16, md: 32 },
-                                right: { xs: 16, md: 32 },
-                                pointerEvents: 'none',
-                                zIndex: 1,
-                            }}
-                        >
-                            <TypewriterPlaceholder theme={theme} />
-                        </Box>
-                    )}
-                    <TextField
-                        multiline
-                        rows={isMobile ? 4 : 5}
-                        fullWidth
-                        value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
-                        variant="standard"
-                        InputProps={{
-                            disableUnderline: true,
-                            sx: {
-                                color: theme.palette.text.primary,
-                                fontSize: { xs: '14px', md: '16px' },
-                            }
-                        }}
-                    />
-                    <Box sx={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        mt: 1,
-                        mb: 0,
-                        flexDirection: { xs: 'column', sm: 'row' },
-                        gap: 2
-                    }}>
-                        <Box sx={{ display: 'flex', gap: 1 }}>
-                            <IconButton
-                                onClick={handleAttachClick}
-                                sx={{
-                                    color: theme.palette.text.secondary,
-                                    '&:hover': { backgroundColor: theme.palette.action.hover }
-                                }}
-                            >
-                                <Attach20Regular />
-                            </IconButton>
-                            <Button
-                                startIcon={<BookOpen20Regular />}
-                                variant="outlined"
-                                sx={{
-                                    color: theme.palette.text.secondary,
-                                    borderColor: theme.palette.divider,
-                                    textTransform: 'none',
-                                    borderRadius: '24px',
-                                    py: 0.5,
-                                    px: 3,
-                                    fontSize: { xs: '12px', sm: '14px' }
-                                }}
-                            >
-                                Learn
-                            </Button>
-                        </Box>
-                        <Box sx={{ display: 'flex', gap: 1 }}>
-                            <Button
-                                variant="outlined"
-                                sx={{
-                                    color: theme.palette.text.secondary,
-                                    borderColor: theme.palette.divider,
-                                    textTransform: 'none',
-                                    borderRadius: '24px',
-                                    minWidth: 'auto',
-                                    py: 0.5,
-                                    px: 2,
-                                    fontSize: { xs: '12px', sm: '14px' }
-                                }}
-                            >
-                                us English (US)
-                            </Button>
-                            <IconButton
-                                onClick={handleVoiceRecord}
-                                sx={{
-                                    color: isRecording ? theme.palette.error.main : theme.palette.text.secondary,
-                                    border: `1px solid ${theme.palette.divider}`,
-                                    borderRadius: '8px',
-                                    animation: isRecording ? 'pulse 1.5s infinite' : 'none',
-                                    '@keyframes pulse': {
-                                        '0%, 100%': { opacity: 1 },
-                                        '50%': { opacity: 0.5 },
-                                    },
-                                }}
-                            >
-                                <Mic20Regular />
-                            </IconButton>
-                            <IconButton
-                                onClick={handleGenerate}
-                                disabled={(!inputValue.trim() && uploadedFiles.length === 0) || updating}
-                                sx={{
-                                    color: (inputValue.trim() || uploadedFiles.length > 0) ? theme.palette.primary.main : theme.palette.text.secondary,
-                                    border: `1px solid ${theme.palette.divider}`,
-                                    borderRadius: '8px',
-                                    '&:disabled': {
-                                        color: theme.palette.text.disabled,
-                                    }
-                                }}
-                            >
-                                {updating ? <CircularProgress size={20} /> : <ArrowUpward sx={{ fontSize: '20px' }} />}
-                            </IconButton>
-                        </Box>
-                    </Box>
-                </Box>
-
-                <Box sx={{ mb: 8 }}>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, justifyContent: 'center', mb: 3 }}>
-                        {displayedSuggestions.map((suggestion, index) => (
-                            <Chip
-                                key={index}
-                                label={suggestion}
-                                onClick={() => setInputValue(suggestion)}
-                                sx={{
-                                    backgroundColor: theme.palette.background.paper,
-                                    color: theme.palette.text.primary,
-                                    borderRadius: 4,
-                                    border: `1px solid ${theme.palette.divider}`,
-                                    '&:hover': {
-                                        backgroundColor: theme.palette.primary.lightBg,
-                                        cursor: 'pointer',
-                                    },
-                                    fontSize: { xs: '12px', sm: '14px' },
-                                    px: { xs: 1, sm: 2 },
-                                    py: { xs: 2, sm: 2.5 }
-                                }}
-                            />
-                        ))}
-                    </Box>
-
-                    {suggestions.length > initialDisplayCount && (
-                        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-                            <Button
-                                onClick={() => setShowAllSuggestions(!showAllSuggestions)}
-                                variant="outlined"
-                                sx={{
-                                    textTransform: 'none',
-                                    borderColor: theme.palette.divider,
-                                    color: theme.palette.text.secondary,
-                                    borderRadius: '50px',
-                                    px: 4,
-                                    py: 0.8,
-                                    '&:hover': {
-                                        borderColor: theme.palette.primary.main,
-                                        backgroundColor: theme.palette.primary.lightBg,
-                                    }
-                                }}
-                            >
-                                {showAllSuggestions ? 'Show Less' : `Show All (${suggestions.length - initialDisplayCount} more)`}
-                            </Button>
-                        </Box>
-                    )}
-                </Box>
-
-                {/* Project Info - Optional Debug Info */}
-                {process.env.NODE_ENV === 'development' && (
-                    <Box
-                        sx={{
-                            backgroundColor: 'rgba(0, 0, 0, 0.3)',
-                            backdropFilter: 'blur(10px)',
-                            borderRadius: 2,
-                            p: 2,
-                            border: `1px solid ${theme.palette.divider}`,
-                        }}
-                    >
-                        <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)', display: 'block', mb: 1 }}>
-                            <strong>Debug Info:</strong>
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)', display: 'block' }}>
-                            Slug: {project.slug} | ID: {project.id}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)', display: 'block' }}>
-                            Theme: {project.theme?.primaryColor} / {project.theme?.font}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.6)', display: 'block' }}>
-                            Uploaded Files: {uploadedFiles.length}
-                        </Typography>
-                    </Box>
-                )}
-            </Container>
-
-            {/* Snackbar for notifications */}
-            <Snackbar
-                open={snackbar.open}
-                autoHideDuration={4000}
-                onClose={handleCloseSnackbar}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-            >
-                <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
-                    {snackbar.message}
-                </Alert>
-            </Snackbar>
+  // ---------------- UI ----------------
+  return (
+    <Box sx={{ minHeight: '100vh', background: '#0a0a0a' }}>
+      {/* Loading Backdrop */}
+      <Backdrop
+        open={isGenerating}
+        sx={{
+          color: '#fff',
+          zIndex: (theme) => theme.zIndex.drawer + 1,
+          backdropFilter: 'blur(8px)',
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        }}
+      >
+        <Box sx={{ textAlign: 'center' }}>
+          <CircularProgress size={60} sx={{ color: '#ff6b9d', mb: 2 }} />
+          <Typography variant="h6" sx={{ color: 'white', mb: 1 }}>
+            {loadingMessage}
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)' }}>
+            This may take a few moments...
+          </Typography>
         </Box>
-    );
+      </Backdrop>
+
+      <Container maxWidth="md" sx={{ pt: 6, pb: 6 }}>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,.pdf,.doc,.docx,.txt"
+          hidden
+          multiple
+          onChange={handleFileUpload}
+        />
+
+        <Button 
+          startIcon={<ArrowBack />} 
+          sx={{ color: 'white', mb: 4 }} 
+          onClick={() => navigate('/dashboard')}
+        >
+          Back to Dashboard
+        </Button>
+
+        <Typography
+          variant="h1"
+          sx={{
+            textAlign: 'center',
+            mb: 2,
+            fontWeight: 'bold',
+            background: 'linear-gradient(135deg, #051075ff, #1481e7ff, #48dbfb)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+          }}
+        >
+          Build Your Project with AI
+        </Typography>
+
+        <Typography sx={{ textAlign: 'center', mb: 4, color: 'rgba(255,255,255,0.7)' }}>
+          Describe what you want — AI will design and build it
+        </Typography>
+
+        <Paper
+          sx={{
+            p: 3,
+            backgroundColor: 'rgba(255,255,255,0.1)',
+            border: '1px solid rgba(255,255,255,0.2)',
+            borderRadius: 3,
+            position: 'relative',
+          }}
+        >
+          {!inputValue && uploadedFiles.length === 0 && (
+            <Box sx={{ position: 'absolute', top: 20, left: 20, right: 20, pointerEvents: 'none' }}>
+              <TypewriterPlaceholder />
+            </Box>
+          )}
+
+          <TextField
+            multiline
+            rows={5}
+            fullWidth
+            variant="standard"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            InputProps={{ disableUnderline: true, sx: { color: 'white', fontSize: 16 } }}
+            sx={{
+              '& .MuiInputBase-input': {
+                color: 'white',
+              }
+            }}
+          />
+
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <IconButton 
+                sx={{ px:1.2, color: 'white' }} 
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <AttachFile />
+              </IconButton>
+              <Button 
+                startIcon={<Book />} 
+                variant="outlined" 
+                sx={{ 
+                  py:0.4,
+                  color: 'white',
+                  borderColor: 'rgba(255,255,255,0.3)',
+                  '&:hover': {
+                    borderColor: 'rgba(255,255,255,0.5)',
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                  }
+                }}
+              >
+                Learn
+              </Button>
+            </Box>
+
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <IconButton 
+                sx={{ px: 1.2, color: isRecording ? '#191cccff' : 'white' }} 
+                onClick={handleVoiceRecord}
+              >
+                <Mic />
+              </IconButton>
+
+              <IconButton
+                onClick={handleGenerate}
+                disabled={isGenerating}
+                sx={{ 
+                  px:1.1,
+                  color: '#ff6b9d', 
+                  border: '1px solid rgba(255,107,157,0.5)',
+                  backgroundColor: 'rgba(255,107,157,0.1)',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255,107,157,0.2)',
+                  },
+                  '&:disabled': {
+                    color: 'rgba(255,107,157,0.5)',
+                  }
+                }}
+              >
+                {isGenerating ? <CircularProgress size={20} /> : <ArrowUpward />}
+              </IconButton>
+            </Box>
+          </Box>
+        </Paper>
+
+        {/* FILE PREVIEW */}
+        {uploadedFiles.length > 0 && (
+          <Box sx={{ mt: 3, display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+            {uploadedFiles.map((file) => (
+              <Paper
+                key={file.id}
+                sx={{
+                  p: 1.5,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  background: 'rgba(255,255,255,0.1)',
+                  color: 'white',
+                  position: 'relative',
+                  borderRadius: 2,
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  minWidth: 200,
+                }}
+              >
+                {file.preview ? (
+                  <Box 
+                    component="img" 
+                    src={file.preview} 
+                    sx={{ width: 40, height: 40, borderRadius: 1, objectFit: 'cover' }} 
+                  />
+                ) : file.isPDF ? (
+                  <PictureAsPdf sx={{ fontSize: 40, color: '#f44336' }} />
+                ) : (
+                  <InsertDriveFile sx={{ fontSize: 40, color: '#2196f3' }} />
+                )}
+
+                <Typography variant="body2" noWrap sx={{ flex: 1, maxWidth: 120 }}>
+                  {file.name}
+                </Typography>
+
+                <IconButton
+                  size="small"
+                  sx={{ 
+                    color: 'white', 
+                    '&:hover': {
+                      backgroundColor: 'rgba(255,255,255,0.2)',
+                    }
+                  }}
+                  onClick={() => handleRemoveFile(file.id)}
+                >
+                  <Close fontSize="small" />
+                </IconButton>
+              </Paper>
+            ))}
+          </Box>
+        )}
+
+        {/* SUGGESTIONS */}
+        <Box sx={{ mt: 5, textAlign: 'center' }}>
+          <Typography variant="h6" sx={{ color: 'white', mb: 3 }}>
+            Or try these suggestions
+          </Typography>
+          
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, justifyContent: 'center' }}>
+            {displayedSuggestions.map((s, i) => (
+              <Chip
+                key={i}
+                label={s}
+                onClick={() => setInputValue(s)}
+                sx={{ 
+                  backgroundColor: 'rgba(255,255,255,0.1)', 
+                  color: 'white',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255,255,255,0.2)',
+                  }
+                }}
+              />
+            ))}
+          </Box>
+
+          <Button 
+            sx={{ 
+              mt: 3, 
+              color: '#ff6b9d',
+              '&:hover': {
+                backgroundColor: 'rgba(255,107,157,0.1)',
+              }
+            }} 
+            onClick={() => setShowAllSuggestions((v) => !v)}
+          >
+            {showAllSuggestions ? 'Show Less' : 'Show All Suggestions'}
+          </Button>
+        </Box>
+      </Container>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          severity={snackbar.severity} 
+          sx={{ width: '100%' }}
+          onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+    </Box>
+  );
 };
 
 export default PromptsPage;

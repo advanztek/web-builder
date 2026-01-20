@@ -1,12 +1,11 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch } from 'react-redux';
 import {
     Box,
     Typography,
     Card,
-    CardActionArea,
     CardContent,
     useTheme,
     IconButton,
@@ -28,20 +27,19 @@ import {
     MenuItem,
     ListItemIcon,
     ListItemText,
-    Alert,
-    Snackbar,
     CircularProgress,
     Grid,
     FormControl,
     InputLabel,
+    Snackbar,
     Select,
     MenuItem as SelectMenuItem,
+    Tabs,
+    Tab,
 } from '@mui/material';
 import {
     Add,
-    Publish,
     Folder,
-    Star,
     ChevronLeft,
     ChevronRight,
     MoreVert,
@@ -52,8 +50,8 @@ import {
     Refresh,
     AutoAwesome,
     EditNote,
+    AccountBalanceWallet,
 } from '@mui/icons-material';
-import { FONT_FAMILY } from '../../Config/font';
 import {
     setActiveProject,
     deleteProject as deleteProjectRedux,
@@ -96,6 +94,11 @@ const DashboardSlider = () => {
     const handlePrev = () => {
         setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
     };
+
+    useEffect(() => {
+        const timer = setInterval(handleNext, 5000);
+        return () => clearInterval(timer);
+    }, []);
 
     return (
         <Box
@@ -214,54 +217,37 @@ const DashboardSlider = () => {
 };
 
 // Projects Table Component
-const ProjectsTable = () => {
+const ProjectsTable = ({ filter = 'all', apiProjects, loading, onRefresh }) => {
     const theme = useTheme();
     const navigate = useNavigate();
     const dispatch = useDispatch();
 
-    const reduxProjects = useSelector(state => state.projects.projects);
-    const reduxProjectsList = useMemo(() => Object.values(reduxProjects), [reduxProjects]);
-
-    const { getProjects, projects: apiProjects, loading: loadingProjects } = useGetProjects();
     const { deleteProject: deleteProjectAPI } = useDeleteProject();
 
-    const [hasLoadedAPI, setHasLoadedAPI] = useState(false);
     const [anchorEl, setAnchorEl] = useState(null);
     const [selectedProject, setSelectedProject] = useState(null);
     const [editDialogOpen, setEditDialogOpen] = useState(false);
     const [editName, setEditName] = useState('');
 
-    const projectsList = useMemo(() => {
-        if (apiProjects && apiProjects.length > 0) {
-            return apiProjects;
-        }
-        return reduxProjectsList;
-    }, [apiProjects, reduxProjectsList]);
+    const filteredProjects = useMemo(() => {
+        if (!apiProjects || apiProjects.length === 0) return [];
 
-    useEffect(() => {
-        if (!hasLoadedAPI) {
-            const fetchProjects = async () => {
-                try {
-                    await getProjects();
-                } catch (error) {
-                    console.log('API fetch failed, using Redux projects:', error);
-                } finally {
-                    setHasLoadedAPI(true);
-                }
-            };
-            fetchProjects();
+        if (filter === 'all') return apiProjects;
+        if (filter === 'published') {
+            return apiProjects.filter(p =>
+                p.data?.settings?.published ||
+                p.settings?.published ||
+                p.status === 'published'
+            );
         }
-    }, [hasLoadedAPI]);
-
-    const handleRefresh = async () => {
-        try {
-            await getProjects();
-        } catch (error) {
-            console.log('Refresh failed:', error);
+        if (filter === 'favorites') {
+            return apiProjects.filter(p => p.isFavorite || p.data?.isFavorite);
         }
-    };
+        return apiProjects;
+    }, [apiProjects, filter]);
 
     const handleMenuOpen = (event, project) => {
+        event.stopPropagation();
         setAnchorEl(event.currentTarget);
         setSelectedProject(project);
     };
@@ -272,17 +258,13 @@ const ProjectsTable = () => {
 
     const handleOpenProject = (project) => {
         dispatch(setActiveProject(project.id));
-
-        // Use slug if available, otherwise fall back to id
         const identifier = project.slug || project.data?.slug || project.id;
-
-        // Navigate to editor route with slug
         navigate(`/dashboard/editor/${identifier}`);
         handleMenuClose();
     };
 
     const handleEditProject = () => {
-        setEditName(selectedProject.name);
+        setEditName(selectedProject.name || selectedProject.data?.name || '');
         setEditDialogOpen(true);
         handleMenuClose();
     };
@@ -302,22 +284,18 @@ const ProjectsTable = () => {
     const handleDuplicate = () => {
         dispatch(duplicateProject({ projectId: selectedProject.id }));
         handleMenuClose();
+        setTimeout(() => onRefresh(), 500);
     };
 
     const handleDelete = async () => {
-        if (window.confirm(`Are you sure you want to delete "${selectedProject.name}"?`)) {
+        const projectName = selectedProject.name || selectedProject.data?.name || 'this project';
+        if (window.confirm(`Are you sure you want to delete "${projectName}"?`)) {
             try {
                 await deleteProjectAPI(selectedProject.id);
+                dispatch(deleteProjectRedux(selectedProject.id));
+                await onRefresh();
             } catch (error) {
-                console.log('API delete failed:', error);
-            }
-
-            dispatch(deleteProjectRedux(selectedProject.id));
-
-            try {
-                await getProjects();
-            } catch (error) {
-                console.log('Refresh after delete failed:', error);
+                console.error('Delete failed:', error);
             }
         }
         handleMenuClose();
@@ -349,58 +327,33 @@ const ProjectsTable = () => {
     };
 
     const getProjectStatus = (project) => {
-        if (project.data && typeof project.data.status === 'string') {
+        if (project.data?.status) {
             return project.data.status.charAt(0).toUpperCase() + project.data.status.slice(1);
         }
-
-        if (typeof project.status === 'string') {
-            return project.status.charAt(0).toUpperCase() + project.status.slice(1);
+        if (project.status) {
+            return typeof project.status === 'string'
+                ? project.status.charAt(0).toUpperCase() + project.status.slice(1)
+                : 'Active';
         }
-
-        if (typeof project.status === 'boolean') {
-            return project.status ? 'Active' : 'Inactive';
-        }
-
-        if (project.gjsData || project.sections) {
-            const updateTime = project.updatedAt || project.updated_at;
-            if (!updateTime) return 'New';
-
-            try {
-                const timeSinceUpdate = Date.now() - (typeof updateTime === 'string' ? new Date(updateTime).getTime() : updateTime);
-                const daysSinceUpdate = timeSinceUpdate / 86400000;
-
-                if (daysSinceUpdate < 1) return 'In Progress';
-                if (daysSinceUpdate < 7) return 'Review';
-                return 'Completed';
-            } catch (error) {
-                return 'New';
-            }
-        }
-
-        return 'New';
+        return 'Draft';
     };
 
     const getStatusColor = (status) => {
         const statusLower = status.toLowerCase();
         switch (statusLower) {
-            case 'completed':
             case 'published':
             case 'active':
                 return 'success';
-            case 'in progress':
             case 'draft':
                 return 'primary';
             case 'review':
                 return 'warning';
-            case 'new':
-            case 'inactive':
-                return 'default';
             default:
                 return 'default';
         }
     };
 
-    if (loadingProjects && projectsList.length === 0 && !hasLoadedAPI) {
+    if (loading && filteredProjects.length === 0) {
         return (
             <Box sx={{ mt: 6, textAlign: 'center', py: 8 }}>
                 <CircularProgress />
@@ -411,45 +364,43 @@ const ProjectsTable = () => {
         );
     }
 
-    if (projectsList.length === 0) {
+    if (filteredProjects.length === 0) {
         return (
             <Box sx={{ mt: 6, textAlign: 'center', py: 8 }}>
                 <Folder sx={{ fontSize: 64, color: theme.palette.text.disabled, mb: 2 }} />
                 <Typography variant="h6" color="text.secondary" gutterBottom>
-                    No projects yet. Create your first project to get started!
+                    {filter === 'all' ? 'No projects yet. Create your first project to get started!' :
+                        filter === 'published' ? 'No published projects yet.' :
+                            'No favorite projects yet.'}
                 </Typography>
                 <Button
                     variant="outlined"
                     startIcon={<Refresh />}
-                    onClick={handleRefresh}
+                    onClick={onRefresh}
                     sx={{ mt: 2 }}
-                    disabled={loadingProjects}
+                    disabled={loading}
                 >
-                    {loadingProjects ? 'Refreshing...' : 'Refresh'}
+                    {loading ? 'Refreshing...' : 'Refresh'}
                 </Button>
             </Box>
         );
     }
 
     return (
-        <Box sx={{ mt: 6 }}>
+        <Box sx={{ mt: 3 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                <Typography
-                    variant="h5"
-                    sx={{
-                        fontWeight: 600,
-                        color: theme.palette.text.primary,
-                    }}
-                >
-                    Recent Projects ({projectsList.length})
+                <Typography variant="h5" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
+                    {filter === 'all' ? `All Projects (${filteredProjects.length})` :
+                        filter === 'published' ? `Published Projects (${filteredProjects.length})` :
+                            `Favorite Projects (${filteredProjects.length})`}
                 </Typography>
                 <Button
-                    startIcon={loadingProjects ? <CircularProgress size={16} /> : <Refresh />}
-                    onClick={handleRefresh}
-                    disabled={loadingProjects}
+                    startIcon={loading ? <CircularProgress size={16} /> : <Refresh />}
+                    onClick={onRefresh}
+                    disabled={loading}
                     size="small"
                 >
-                    {loadingProjects ? 'Refreshing...' : 'Refresh'}
+                    {loading ? 'Refreshing...' : 'Refresh'}
                 </Button>
             </Box>
             <TableContainer
@@ -470,7 +421,7 @@ const ProjectsTable = () => {
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {projectsList
+                        {filteredProjects
                             .sort((a, b) => {
                                 const aTime = a.updatedAt || a.updated_at || a.createdAt || a.created_at || 0;
                                 const bTime = b.updatedAt || b.updated_at || b.createdAt || b.created_at || 0;
@@ -478,9 +429,10 @@ const ProjectsTable = () => {
                                 const bDate = typeof bTime === 'string' ? new Date(bTime).getTime() : bTime;
                                 return bDate - aDate;
                             })
-                            .slice(0, 10)
                             .map((project) => {
                                 const status = getProjectStatus(project);
+                                const projectName = project.name || project.data?.name || 'Untitled';
+
                                 return (
                                     <TableRow
                                         key={project.id}
@@ -493,7 +445,7 @@ const ProjectsTable = () => {
                                         onClick={() => handleOpenProject(project)}
                                     >
                                         <TableCell sx={{ fontWeight: 500 }}>
-                                            {project.name}
+                                            {projectName}
                                         </TableCell>
                                         <TableCell>
                                             <Chip
@@ -592,14 +544,12 @@ const Dashboard = () => {
     const dispatch = useDispatch();
 
     const { createProject, loading: creatingProject } = useCreateProject();
+    const { getProjects, projects: apiProjects, loading: loadingProjects } = useGetProjects();
 
-    const reduxProjects = useSelector(state => state.projects.projects);
-    const projectsList = useMemo(() => Object.values(reduxProjects), [reduxProjects]);
-
-    // Modal states
+    const [activeTab, setActiveTab] = useState(0);
+    const [creditBalance] = useState(150);
     const [choiceDialogOpen, setChoiceDialogOpen] = useState(false);
     const [manualDialogOpen, setManualDialogOpen] = useState(false);
-
     const [formData, setFormData] = useState({
         name: '',
         description: '',
@@ -609,9 +559,14 @@ const Dashboard = () => {
         font: 'Inter'
     });
     const [error, setError] = useState('');
-    const [snackbarOpen, setSnackbarOpen] = useState(false);
-    const [snackbarMessage, setSnackbarMessage] = useState('');
-    const [snackbarSeverity, setSnackbarSeverity] = useState('success');
+
+    useEffect(() => {
+        getProjects();
+    }, []);
+
+    const handleTabChange = (event, newValue) => {
+        setActiveTab(newValue);
+    };
 
     const handleInputChange = (field) => (event) => {
         setFormData(prev => ({
@@ -625,37 +580,17 @@ const Dashboard = () => {
         setChoiceDialogOpen(true);
     };
 
+    const handleBuyCredits = () => {
+        navigate('/dashboard/buy-credits');
+    };
+
     const handleChoiceClose = () => {
         setChoiceDialogOpen(false);
     };
 
-    const handleChoiceAI = async () => {
+    const handleChoiceAI = () => {
         setChoiceDialogOpen(false);
-
-        // Create project with minimal data and navigate to prompts page
-        try {
-            const projectData = {
-                name: `Project ${projectsList.length + 1}`,
-                description: 'AI Generated Project',
-                primaryColor: '#1976d2',
-                secondaryColor: '#0F172A',
-                backgroundColor: '#FFFFFF',
-                font: 'Inter',
-                mode: 'prompt' // Add mode for API
-            };
-
-            const result = await createProject(projectData);
-
-            if (result) {
-                const identifier = result.slug || result.data?.slug || result.id;
-                navigate(`/dashboard/prompts/${identifier}`);
-            }
-        } catch (err) {
-            console.error('Error creating project:', err);
-            setSnackbarMessage(err.message || 'Failed to create project');
-            setSnackbarSeverity('error');
-            setSnackbarOpen(true);
-        }
+        navigate('/dashboard/prompts');
     };
 
     const handleChoiceManual = () => {
@@ -686,17 +621,59 @@ const Dashboard = () => {
 
         setError('');
 
-        try {
-            const projectData = {
-                name: formData.name.trim(),
-                description: formData.description.trim() || `Project: ${formData.name}`,
-                primaryColor: formData.primaryColor,
-                secondaryColor: formData.secondaryColor,
-                backgroundColor: formData.backgroundColor,
-                font: formData.font,
-                mode: 'manual' // Add mode for API
-            };
+        const slug = formData.name
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '');
 
+        const projectData = {
+            mode: 'manual',
+            data: {
+                name: formData.name.trim(),
+                slug: slug,
+                title: formData.name.trim(),
+                seo: {
+                    title: formData.name.trim(),
+                    description: formData.description.trim() || `Project: ${formData.name}`,
+                    keywords: ['website', 'landing page', formData.name.toLowerCase()]
+                },
+                theme: {
+                    font: formData.font,
+                    primaryColor: formData.primaryColor,
+                    secondaryColor: formData.secondaryColor,
+                    backgroundColor: formData.backgroundColor,
+                },
+                pages: {
+                    'page-1': {
+                        id: 'page-1',
+                        name: 'Home',
+                        slug: 'home',
+                        isHome: true,
+                        gjsData: {
+                            html: '',
+                            css: '',
+                            components: [],
+                            styles: []
+                        },
+                        createdAt: Date.now(),
+                        updatedAt: Date.now()
+                    }
+                },
+                sections: [],
+                settings: {
+                    published: false,
+                    customDomain: null,
+                    analytics: {
+                        googleAnalyticsId: null,
+                        facebookPixelId: null
+                    }
+                },
+                status: 'draft',
+                activePageId: 'page-1'
+            }
+        };
+
+        try {
             const result = await createProject(projectData);
 
             if (result) {
@@ -710,219 +687,76 @@ const Dashboard = () => {
                 });
                 setManualDialogOpen(false);
 
-                setSnackbarMessage('Project created successfully!');
-                setSnackbarSeverity('success');
-                setSnackbarOpen(true);
-
-                // Navigate to editor with slug
                 const identifier = result.slug || result.data?.slug || result.id;
                 navigate(`/dashboard/editor/${identifier}`);
             }
         } catch (err) {
-            console.error('Error creating project:', err);
+            console.error('Error creating manual project:', err);
             setError(err.message || 'Failed to create project');
-            setSnackbarMessage(err.message || 'Failed to create project');
-            setSnackbarSeverity('error');
-            setSnackbarOpen(true);
         }
     };
 
-    const handleViewAllProjects = () => {
-        const projectsSection = document.getElementById('projects-table');
-        if (projectsSection) {
-            projectsSection.scrollIntoView({ behavior: 'smooth' });
-        }
-    };
+    const publishedCount = apiProjects?.filter(p =>
+        p.data?.settings?.published || p.settings?.published || p.status === 'published'
+    ).length || 0;
 
-    const handleCloseSnackbar = () => {
-        setSnackbarOpen(false);
-    };
+    const favoritesCount = apiProjects?.filter(p =>
+        p.isFavorite || p.data?.isFavorite
+    ).length || 0;
 
-    const cards = [
-        {
-            title: 'Create New Project',
-            icon: <Add sx={{ fontSize: 28 }} />,
-            description: 'Start a new design project',
-            onClick: handleCreateProject,
-            color: theme.palette.primary.main,
-        },
-        {
-            title: 'My Projects',
-            icon: <Folder sx={{ fontSize: 28 }} />,
-            description: `${projectsList.length} total projects`,
-            onClick: handleViewAllProjects,
-            color: theme.palette.info.main,
-        },
-        {
-            title: 'Published Projects',
-            icon: <Publish sx={{ fontSize: 28 }} />,
-            description: 'View your published work',
-            onClick: () => console.log('Published Projects clicked'),
-            color: theme.palette.success.main,
-        },
-        {
-            title: 'Favorites',
-            icon: <Star sx={{ fontSize: 28 }} />,
-            description: 'Access your starred projects',
-            onClick: () => console.log('Favorites clicked'),
-            color: theme.palette.warning.main,
-        },
-    ];
+    const totalProjects = apiProjects?.length || 0;
 
     return (
-        <Box
-            sx={{
-                minHeight: '100vh',
-                bgcolor: theme.palette.background.default,
-                pt: 12,
-                px: 4,
-                pb: 4,
-            }}
-        >
+        <Box sx={{ minHeight: '100vh', bgcolor: theme.palette.background.default, pt: 12, px: 4, pb: 4 }}>
             <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
                 <DashboardSlider />
 
-                <Typography
-                    variant="h3"
-                    sx={{
-                        fontFamily: FONT_FAMILY.secondary,
-                        mb: 1,
-                        fontWeight: 700,
-                        color: theme.palette.text.primary,
-                    }}
-                >
-                    Welcome Back to Dashboard
-                </Typography>
-                <Typography
-                    variant="body1"
-                    sx={{
-                        mb: 6,
-                        color: theme.palette.text.secondary,
-                    }}
-                >
-                    Choose an option below to get started
-                </Typography>
-
-                <Box
-                    sx={{
-                        display: 'grid',
-                        gridTemplateColumns: {
-                            xs: '1fr',
-                            sm: 'repeat(2, 1fr)',
-                            md: 'repeat(4, 1fr)',
-                        },
-                        gap: 3,
-                    }}
-                >
-                    {cards.map((card, index) => (
-                        <Card
-                            key={index}
-                            sx={{
-                                height: '100%',
-                                bgcolor: theme.palette.background.paper,
-                                border: `1px solid ${theme.palette.divider}`,
-                                transition: 'all 0.3s ease',
-                                '&:hover': {
-                                    transform: 'translateY(-8px)',
-                                    boxShadow: theme.shadows[8],
-                                    borderColor: card.color,
-                                },
-                            }}
-                        >
-                            <CardActionArea
-                                onClick={card.onClick}
-                                sx={{
-                                    height: '100%',
-                                    p: 1,
-                                }}
-                            >
-                                <CardContent
-                                    sx={{
-                                        display: 'flex',
-                                        flexDirection: 'row',
-                                        alignItems: 'center',
-                                        textAlign: 'center',
-                                        gap: 2,
-                                    }}
-                                >
-                                    <Box
-                                        sx={{
-                                            color: card.color,
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            p: 1,
-                                            borderRadius: '50%',
-                                            bgcolor: theme.palette.action.hover,
-                                        }}
-                                    >
-                                        {card.icon}
-                                    </Box>
-                                    <Box>
-                                        <Typography
-                                            variant="h6"
-                                            sx={{
-                                                fontWeight: 600,
-                                                color: theme.palette.text.primary,
-                                            }}
-                                        >
-                                            {card.title}
-                                        </Typography>
-                                        <Typography
-                                            variant="caption"
-                                            sx={{
-                                                color: theme.palette.text.secondary,
-                                            }}
-                                        >
-                                            {card.description}
-                                        </Typography>
-                                    </Box>
-                                </CardContent>
-                            </CardActionArea>
-                        </Card>
-                    ))}
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+                    <Box>
+                        <Typography variant="h3" sx={{ mb: 1, fontWeight: 700, color: theme.palette.text.primary }}>
+                            Welcome Back to Dashboard
+                        </Typography>
+                        <Typography variant="body1" sx={{ color: theme.palette.text.secondary }}>
+                            Manage your projects and explore new possibilities
+                        </Typography>
+                    </Box>
+                    
                 </Box>
 
-                <div id="projects-table">
-                    <ProjectsTable />
-                </div>
+                <Box sx={{ mb: 4 }}>
+                    <Card sx={{ bgcolor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}` }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${theme.palette.divider}`, px: 2 }}>
+                            <Tabs value={activeTab} onChange={handleTabChange} sx={{ '& .MuiTab-root': { fontSize: '1.1rem', fontWeight: 500, textTransform: 'none', minHeight: 64, px: 3 } }}>
+                                <Tab label={<Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}><span style={{ fontSize: '1.3rem' }}>📁</span><span>My Projects</span><Chip label={totalProjects} size="small" color="primary" sx={{ height: 20, fontSize: '0.75rem' }} /></Box>} />
+                                <Tab label={<Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}><span style={{ fontSize: '1.3rem' }}>🚀</span><span>Published</span><Chip label={publishedCount} size="small" color="success" sx={{ height: 20, fontSize: '0.75rem' }} /></Box>} />
+                                <Tab label={<Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}><span style={{ fontSize: '1.3rem' }}>⭐</span><span>Favorites</span><Chip label={favoritesCount} size="small" color="warning" sx={{ height: 20, fontSize: '0.75rem' }} /></Box>} />
+                            </Tabs>
+
+                            <Button variant="contained" size="large" startIcon={<Add />} onClick={handleCreateProject} sx={{ px: 3, py: 1.2, fontSize: '1rem', fontWeight: 600, my: 1 }}>
+                                Create New Project
+                            </Button>
+                        </Box>
+
+                        <Box sx={{ p: 3 }}>
+                            {activeTab === 0 && <ProjectsTable filter="all" apiProjects={apiProjects} loading={loadingProjects} onRefresh={getProjects} />}
+                            {activeTab === 1 && <ProjectsTable filter="published" apiProjects={apiProjects} loading={loadingProjects} onRefresh={getProjects} />}
+                            {activeTab === 2 && <ProjectsTable filter="favorites" apiProjects={apiProjects} loading={loadingProjects} onRefresh={getProjects} />}
+                        </Box>
+                    </Card>
+                </Box>
             </Box>
 
             {/* Choice Dialog - AI or Manual */}
-            <Dialog
-                open={choiceDialogOpen}
-                onClose={handleChoiceClose}
-                maxWidth="sm"
-                fullWidth
-            >
+            <Dialog open={choiceDialogOpen} onClose={handleChoiceClose} maxWidth="sm" fullWidth>
                 <DialogTitle sx={{ textAlign: 'center', pb: 1 }}>
                     Choose Creation Method
                 </DialogTitle>
                 <DialogContent sx={{ pt: 3, pb: 3 }}>
                     <Grid container spacing={3}>
-                        <Grid size={{ xs: 12, sm: 6 }}>
-                            <Card
-                                sx={{
-                                    height: '100%',
-                                    cursor: 'pointer',
-                                    border: `2px solid ${theme.palette.divider}`,
-                                    transition: 'all 0.3s ease',
-                                    '&:hover': {
-                                        borderColor: theme.palette.primary.main,
-                                        transform: 'translateY(-4px)',
-                                        boxShadow: theme.shadows[4],
-                                    },
-                                }}
-                                onClick={handleChoiceAI}
-                            >
+                        <Grid size={{ xs:12, sm:6 }} >
+                            <Card sx={{ height: '100%', cursor: 'pointer', border: `2px solid ${theme.palette.divider}`, transition: 'all 0.3s ease', '&:hover': { borderColor: theme.palette.primary.main, transform: 'translateY(-4px)', boxShadow: theme.shadows[4] } }} onClick={handleChoiceAI}>
                                 <CardContent sx={{ textAlign: 'center', py: 4 }}>
-                                    <AutoAwesome
-                                        sx={{
-                                            fontSize: 64,
-                                            color: theme.palette.primary.main,
-                                            mb: 2,
-                                        }}
-                                    />
+                                    <AutoAwesome sx={{ fontSize: 64, color: theme.palette.primary.main, mb: 2 }} />
                                     <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
                                         AI Prompts
                                     </Typography>
@@ -932,29 +766,10 @@ const Dashboard = () => {
                                 </CardContent>
                             </Card>
                         </Grid>
-                        <Grid size={{ xs: 12, sm: 6 }}>
-                            <Card
-                                sx={{
-                                    height: '100%',
-                                    cursor: 'pointer',
-                                    border: `2px solid ${theme.palette.divider}`,
-                                    transition: 'all 0.3s ease',
-                                    '&:hover': {
-                                        borderColor: theme.palette.secondary.main,
-                                        transform: 'translateY(-4px)',
-                                        boxShadow: theme.shadows[4],
-                                    },
-                                }}
-                                onClick={handleChoiceManual}
-                            >
+                        <Grid size={{ xs:12, sm:6 }} >
+                            <Card sx={{ height: '100%', cursor: 'pointer', border: `2px solid ${theme.palette.divider}`, transition: 'all 0.3s ease', '&:hover': { borderColor: theme.palette.secondary.main, transform: 'translateY(-4px)', boxShadow: theme.shadows[4] } }} onClick={handleChoiceManual}>
                                 <CardContent sx={{ textAlign: 'center', py: 4 }}>
-                                    <EditNote
-                                        sx={{
-                                            fontSize: 64,
-                                            color: theme.palette.secondary.main,
-                                            mb: 2,
-                                        }}
-                                    />
+                                    <EditNote sx={{ fontSize: 64, color: theme.palette.secondary.main, mb: 2 }} />
                                     <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
                                         Manual Setup
                                     </Typography>
@@ -967,9 +782,7 @@ const Dashboard = () => {
                     </Grid>
                 </DialogContent>
                 <DialogActions sx={{ px: 3, pb: 2 }}>
-                    <Button onClick={handleChoiceClose}>
-                        Cancel
-                    </Button>
+                    <Button onClick={handleChoiceClose}>Cancel</Button>
                 </DialogActions>
             </Dialog>
 
@@ -1137,7 +950,7 @@ const Dashboard = () => {
                 </DialogActions>
             </Dialog>
 
-            <Snackbar
+            {/* <Snackbar
                 open={snackbarOpen}
                 autoHideDuration={6000}
                 onClose={handleCloseSnackbar}
@@ -1150,9 +963,9 @@ const Dashboard = () => {
                 >
                     {snackbarMessage}
                 </Alert>
-            </Snackbar>
+            </Snackbar> */}
         </Box>
     );
 };
 
-export default Dashboard
+export default Dashboard;
