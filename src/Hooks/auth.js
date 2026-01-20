@@ -33,14 +33,14 @@ export const useRegister = () => {
     setLoading(true);
 
     try {
-      const res = await apiCall("/auth/register", data);
+      const res = await apiCall("/V1/auth/register", data);
 
       if (!res?.success) {
         throw new Error(res?.message || "Registration failed");
       }
 
       // ✅ Request OTP explicitly
-      await apiCall("/auth/req-verify-otp", {
+      await apiCall("/V1/auth/req-verify-otp", {
         email: data.email,
       });
 
@@ -89,7 +89,7 @@ export const useLogin = () => {
   const login = async (data) => {
     setLoading(true);
     try {
-      const result = await apiCall('/auth/login', data);
+      const result = await apiCall('/V1/auth/login', data);
       console.log('LOGIN RESPONSE:', result);
 
       localStorage.setItem('token', result.result.token);
@@ -180,7 +180,7 @@ export const useGoogleAuth = () => {
 
     setLoading(true);
 
-    const googleAuthUrl = `${BASE_SERVER_URL}/auth/google`;
+    const googleAuthUrl = `${BASE_SERVER_URL}/V1/auth/google`;
 
     const width = 500;
     const height = 650;
@@ -230,7 +230,7 @@ export const useVerifyEmail = () => {
 
     try {
       const res = await apiCall(
-        "/auth/verify-email",
+        "/V1/auth/verify-email",
         data,
         "POST",
         "application/x-www-form-urlencoded"
@@ -270,7 +270,7 @@ export const useRequestVerifyOTP = () => {
   const requestOTP = async (email) => {
     setLoading(true);
     try {
-      const result = await apiCall('/auth/req-verify-otp', { email });
+      const result = await apiCall('/V1/auth/req-verify-otp', { email });
       showToast.success(result.message || 'OTP sent to your email!');
       return result;
     } catch (error) {
@@ -291,7 +291,7 @@ export const useForgotPassword = () => {
   const forgotPassword = async (email) => {
     setLoading(true);
     try {
-      const result = await apiCall('/auth/forgot-password', { email });
+      const result = await apiCall('/V1/auth/forgot-password', { email });
       showToast.success(result.message || 'Password reset link sent to your email!');
       navigate('/forgot-password-confirmation');
       return result;
@@ -313,7 +313,7 @@ export const useResetPassword = () => {
   const resetPassword = async (data) => {
     setLoading(true);
     try {
-      const result = await apiCall('/auth/reset-password', data);
+      const result = await apiCall('/V1/auth/reset-password', data);
       showToast.success(result.message || 'Password reset successful!');
       navigate('/login');
       return result.result;
