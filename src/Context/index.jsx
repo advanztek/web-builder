@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
+import React, { createContext, useContext, useMemo, useEffect } from 'react';
 import { ThemeProvider as MUIThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { getTheme } from '../Theme';
@@ -14,25 +14,19 @@ export const useThemeContext = () => {
 };
 
 export const ThemeProvider = ({ children }) => {
-  const [mode, setMode] = useState(() => {
-    const savedMode = localStorage.getItem('themeMode');
-    return savedMode || 'light';
-  });
+  const mode = 'dark'; // 🔒 Locked to dark mode
 
+  // Persist dark mode in case browser or other code tries to override
   useEffect(() => {
-    localStorage.setItem('themeMode', mode);
-  }, [mode]);
+    localStorage.setItem('themeMode', 'dark');
+  }, []);
 
-  const toggleTheme = () => {
-    setMode((prevMode) => (prevMode === 'light' ? 'dark' : 'light'));
-  };
-
-  const theme = useMemo(() => getTheme(mode), [mode]);
+  const theme = useMemo(() => getTheme('dark'), []);
 
   const value = {
     mode,
-    toggleTheme,
     theme,
+    toggleTheme: () => {}, // 🚫 Disabled — dark mode only
   };
 
   return (
