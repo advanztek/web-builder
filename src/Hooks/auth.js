@@ -1,8 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback, useEffect  } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { showToast } from '../Utils/toast';
 import { BASE_SERVER_URL } from '../Config/url';
-
 // Utility function for API calls
 const apiCall = async (endpoint, data, method = 'POST', contentType = 'application/json') => {
   const options = {
@@ -111,88 +110,116 @@ export const useLogin = () => {
   return { login, loading };
 };
 
+
 export const useGoogleAuth = () => {
   const [loading, setLoading] = useState(false);
+  const popupRef = useRef(null);
+  const intervalRef = useRef(null);
   const navigate = useNavigate();
 
-  const loginWithGoogle = () => {
-    setLoading(true);
+  const cleanup = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
 
-    const googleAuthUrl = `${BASE_SERVER_URL}/auth/google`;
-    const width = 500;
-    const height = 600;
-    const left = window.screen.width / 2 - width / 2;
-    const top = window.screen.height / 2 - height / 2;
-    
-    const popup = window.open(
-      googleAuthUrl,
-      'Google Sign In',
-      `width=${width},height=${height},left=${left},top=${top}`
-    );
+    window.removeEventListener('message', handleMessage);
 
-    // Listen for messages from the popup
-    const handleMessage = (event) => {
-      // Verify the origin of the message
-      if (event.origin !== window.location.origin && !event.origin.includes(BASE_SERVER_URL)) {
+    if (popupRef.current && !popupRef.current.closed) {
+      popupRef.current.close();
+    }
+
+    popupRef.current = null;
+  }, []);
+
+  const handleMessage = useCallback((event) => {
+    // Accept messages from backend or same-origin redirect page
+    const allowedOrigins = [
+      window.location.origin,
+      BASE_SERVER_URL
+    ];
+
+    if (!allowedOrigins.some(origin => event.origin.startsWith(origin))) {
+      return;
+    }
+
+    const { type, result, message } = event.data || {};
+
+    if (type === 'GOOGLE_AUTH_SUCCESS') {
+      const { token, user } = result || {};
+
+      if (!token) {
+        showToast.error('Google login failed: missing token');
+        cleanup();
+        setLoading(false);
         return;
       }
 
-      const { type, data } = event.data;
+      localStorage.setItem('token', token);
+      localStorage.setItem('authToken', token);
+      localStorage.setItem('user', JSON.stringify(user));
 
-      if (type === 'GOOGLE_AUTH_SUCCESS') {
-        // Close the popup
-        if (popup) {
-          popup.close();
-        }
+      showToast.success(`Welcome ${user?.firstname || user?.email || 'back'}!`);
 
-        // Extract token and user
-        const { token, user } = data.result || {};
-
-        if (token) {
-          // Store token
-          localStorage.setItem('token', token);
-          localStorage.setItem('authToken', token);
-          localStorage.setItem('user', JSON.stringify(user));
-
-          showToast.success(`Welcome ${user?.firstname || user?.email || 'back'}!`);
-          
-          // Navigate to dashboard
-          navigate('/dashboard', { replace: true });
-        }
-
-        setLoading(false);
-        window.removeEventListener('message', handleMessage);
-      } else if (type === 'GOOGLE_AUTH_ERROR') {
-        if (popup) {
-          popup.close();
-        }
-        showToast.error(data?.message || "Google login failed");
-        setLoading(false);
-        window.removeEventListener('message', handleMessage);
-      }
-    };
-
-    // Add event listener for messages
-    window.addEventListener('message', handleMessage);
-
-    // Check if popup was blocked
-    if (!popup || popup.closed || typeof popup.closed === 'undefined') {
-      showToast.error('Popup blocked! Please allow popups for this site.');
+      cleanup();
       setLoading(false);
-      window.removeEventListener('message', handleMessage);
+
+      navigate('/dashboard', { replace: true });
     }
 
-    // Fallback: if popup doesn't send message within 60 seconds
-    setTimeout(() => {
-      if (loading) {
-        setLoading(false);
-        window.removeEventListener('message', handleMessage);
-      }
-    }, 60000);
-  };
+    if (type === 'GOOGLE_AUTH_ERROR') {
+      showToast.error(message || 'Google login failed');
 
-  return { loginWithGoogle, loading };
+      cleanup();
+      setLoading(false);
+    }
+  }, [cleanup, navigate]);
+
+  const loginWithGoogle = useCallback(() => {
+    if (loading) return;
+
+    setLoading(true);
+
+    const googleAuthUrl = `${BASE_SERVER_URL}/auth/google`;
+
+    const width = 500;
+    const height = 650;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+
+    popupRef.current = window.open(
+      googleAuthUrl,
+      'GoogleAuthPopup',
+      `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+    );
+
+    if (!popupRef.current) {
+      showToast.error('Popup blocked! Please allow popups for this site.');
+      setLoading(false);
+      return;
+    }
+
+    window.addEventListener('message', handleMessage);
+
+    // Detect manual close or backend redirect flow
+    intervalRef.current = setInterval(() => {
+      if (!popupRef.current || popupRef.current.closed) {
+        cleanup();
+        setLoading(false);
+      }
+    }, 500);
+  }, [loading, handleMessage, cleanup]);
+
+  useEffect(() => {
+    return () => cleanup();
+  }, [cleanup]);
+
+  return {
+    loginWithGoogle,
+    loading
+  };
 };
+
 
 export const useVerifyEmail = () => {
   const [loading, setLoading] = useState(false);

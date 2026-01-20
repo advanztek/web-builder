@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -22,7 +22,10 @@ import {
   FormControl,
   InputLabel,
   Select,
-  MenuItem
+  MenuItem,
+  Collapse,
+  Card,
+  CardContent,
 } from '@mui/material';
 import {
   Add,
@@ -33,36 +36,76 @@ import {
   Tablet,
   Visibility,
   ArrowBack,
+  ChevronLeft,
+  ChevronRight,
+  AccountBalanceWallet,
+  AutoAwesome,
+  EditNote,
 } from '@mui/icons-material';
 import { Workspace } from '../../../Components/WorkSpace';
 import { LayoutPanel } from '../../../Components/Tools/LayoutPanel';
 import { useCreateProject, useGetProject } from '../../../Hooks/projects';
 import { setActiveProject } from '../../../Store/slices/projectsSlice';
 
+// Custom scrollbar styles for the properties panel
+const customScrollbarStyles = {
+  '&::-webkit-scrollbar': {
+    width: '6px',
+  },
+  '&::-webkit-scrollbar-track': {
+    background: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: '10px',
+  },
+  '&::-webkit-scrollbar-thumb': {
+    background: 'linear-gradient(180deg, #667eea 0%, #764ba2 100%)',
+    borderRadius: '10px',
+    transition: 'all 0.3s ease',
+  },
+  '&::-webkit-scrollbar-thumb:hover': {
+    background: 'linear-gradient(180deg, #764ba2 0%, #667eea 100%)',
+    width: '8px',
+  },
+  scrollbarWidth: 'thin',
+  scrollbarColor: '#667eea rgba(255, 255, 255, 0.05)',
+};
+
 function EditorPage() {
   const theme = useTheme();
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { projectId } = useParams();
+  const location = useLocation();
+  const { slug } = useParams(); // Changed from projectId to slug to match route
 
   const [deviceMode, setDeviceMode] = useState('Desktop');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
+  const [creditBalance] = useState(2500);
+  const [loadedProject, setLoadedProject] = useState(null); // ADD THIS HERE
   const workspaceRef = useRef(null);
 
-  // Use the custom hooks
   const { createProject, loading: creatingProject } = useCreateProject();
   const { getProject, project: apiProject, loading: loadingProject } = useGetProject();
 
-  // Get active project from Redux
   const activeProjectId = useSelector(state => state.projects.activeProjectId);
   const reduxProject = useSelector(state =>
     activeProjectId ? state.projects.projects[activeProjectId] : null
   );
 
-  // Use API project if available, otherwise use Redux project
-  const project = apiProject || reduxProject;
+  const project = loadedProject || apiProject || reduxProject;
 
-  const [dialogOpen, setDialogOpen] = useState(false);
+  // Log current project state
+  useEffect(() => {
+    console.log('📊 CURRENT PROJECT STATE:', {
+      loadedProject: loadedProject?.id,
+      apiProject: apiProject?.id,
+      reduxProject: reduxProject?.id,
+      finalProject: project?.id
+    });
+  }, [loadedProject, apiProject, reduxProject, project]);
+
+  // Dialog states
+  const [choiceDialogOpen, setChoiceDialogOpen] = useState(false);
+  const [manualDialogOpen, setManualDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -73,56 +116,75 @@ function EditorPage() {
   });
   const [error, setError] = useState('');
 
-  // Load project when component mounts or projectId changes
+  // COMPREHENSIVE PROJECT LOADING
   useEffect(() => {
     const loadProject = async () => {
-      if (projectId) {
-        console.log('📂 Loading project from API:', projectId);
-        const loadedProject = await getProject(projectId);
+      if (!slug) {
+        console.warn('No slug in URL');
+        return;
+      }
 
-        if (loadedProject) {
-          console.log('✅ Project loaded:', loadedProject.name || loadedProject.data?.name);
-          dispatch(setActiveProject(loadedProject.id));
+      console.log('🔍 EditorPage loading project:', slug);
+
+      // Priority 1: Check navigation state
+      if (location.state?.createdProject) {
+        console.log('📦 Loading from navigation state');
+        const proj = location.state.createdProject;
+        console.log('📦 Project data:', proj);
+        setLoadedProject(proj);
+        dispatch(setActiveProject(proj.id));
+        setRefreshKey(prev => prev + 1);
+        return;
+      }
+
+      // Priority 2: Check sessionStorage
+      const pendingProject = sessionStorage.getItem('pending_project');
+      if (pendingProject) {
+        try {
+          const proj = JSON.parse(pendingProject);
+          console.log('📦 Loading from sessionStorage');
+          console.log('📦 Project data:', proj);
+          setLoadedProject(proj);
+          dispatch(setActiveProject(proj.id));
+          sessionStorage.removeItem('pending_project');
+          setRefreshKey(prev => prev + 1);
+          return;
+        } catch (e) {
+          console.warn('Failed to parse sessionStorage:', e);
         }
-      } else if (activeProjectId && !apiProject) {
-        console.log('📂 Loading active project from API:', activeProjectId);
-        await getProject(activeProjectId);
+      }
+
+      // Priority 3: Load from API
+      console.log('📦 Loading from API');
+      const proj = await getProject(slug, false);
+      if (proj) {
+        console.log('📦 Project loaded from API:', proj);
+        setLoadedProject(proj);
+        dispatch(setActiveProject(proj.id));
+        setRefreshKey(prev => prev + 1);
+      } else {
+        console.error('❌ Failed to load project');
       }
     };
 
     loadProject();
-  }, [projectId, activeProjectId]);
+  }, [slug, location.state]);
 
-  // CRITICAL: project-updated event listener with FORCED refresh
   useEffect(() => {
     const handleProjectUpdate = async () => {
-      console.log('🔄 Project update event received, FORCE reloading...');
-
-      const idToLoad = projectId || activeProjectId;
-      
+      const idToLoad = slug || activeProjectId;
       if (idToLoad) {
-        // Force reload from backend
-        const reloadedProject = await getProject(idToLoad);
-        
+        const reloadedProject = await getProject(idToLoad, false);
         if (reloadedProject) {
-          const pageCount = Object.keys(reloadedProject.data?.pages || {}).length;
-          console.log('✅ Project FORCE reloaded with', pageCount, 'pages');
-          
-          // Force increment refresh key to re-render LayoutPanel
           setRefreshKey(prev => prev + 1);
-          
-          // Extra: Dispatch to Redux to ensure state is updated
           dispatch(setActiveProject(reloadedProject.id));
         }
       }
     };
 
     window.addEventListener('project-updated', handleProjectUpdate);
-    
-    return () => {
-      window.removeEventListener('project-updated', handleProjectUpdate);
-    };
-  }, [projectId, activeProjectId, getProject, dispatch]);
+    return () => window.removeEventListener('project-updated', handleProjectUpdate);
+  }, [slug, activeProjectId, getProject, dispatch]);
 
   const handleInputChange = (field) => (event) => {
     setFormData(prev => ({
@@ -130,6 +192,39 @@ function EditorPage() {
       [field]: event.target.value
     }));
     setError('');
+  };
+
+  const handleCreateProjectClick = () => {
+    setChoiceDialogOpen(true);
+  };
+
+  const handleChoiceClose = () => {
+    setChoiceDialogOpen(false);
+  };
+
+  const handleChoiceAI = () => {
+    setChoiceDialogOpen(false);
+    navigate('/dashboard/prompts');
+  };
+
+  const handleChoiceManual = () => {
+    setChoiceDialogOpen(false);
+    setManualDialogOpen(true);
+  };
+
+  const handleManualDialogClose = () => {
+    if (!creatingProject) {
+      setManualDialogOpen(false);
+      setError('');
+      setFormData({
+        name: '',
+        description: '',
+        primaryColor: '#1976d2',
+        secondaryColor: '#0F172A',
+        backgroundColor: '#FFFFFF',
+        font: 'Inter'
+      });
+    }
   };
 
   const handleCreateProject = async () => {
@@ -140,18 +235,57 @@ function EditorPage() {
 
     setError('');
 
-    const projectData = {
-      name: formData.name.trim(),
-      description: formData.description.trim() || `Project: ${formData.name}`,
-      primaryColor: formData.primaryColor,
-      secondaryColor: formData.secondaryColor,
-      backgroundColor: formData.backgroundColor,
-      font: formData.font,
-      seoTitle: formData.name.trim(),
-      keywords: ['website', 'landing page', formData.name.toLowerCase()]
-    };
+    const slug = formData.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
 
-    console.log('Creating project with:', projectData);
+    const projectData = {
+      mode: 'manual',
+      data: {
+        name: formData.name.trim(),
+        slug: slug,
+        title: formData.name.trim(),
+        seo: {
+          title: formData.name.trim(),
+          description: formData.description.trim() || `Project: ${formData.name}`,
+          keywords: ['website', 'landing page', formData.name.toLowerCase()]
+        },
+        theme: {
+          font: formData.font,
+          primaryColor: formData.primaryColor,
+          secondaryColor: formData.secondaryColor,
+          backgroundColor: formData.backgroundColor,
+        },
+        pages: {
+          'page-1': {
+            id: 'page-1',
+            name: 'Home',
+            slug: 'home',
+            isHome: true,
+            gjsData: {
+              html: '',
+              css: '',
+              components: [],
+              styles: []
+            },
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          }
+        },
+        sections: [],
+        settings: {
+          published: false,
+          customDomain: null,
+          analytics: {
+            googleAnalyticsId: null,
+            facebookPixelId: null
+          }
+        },
+        status: 'draft',
+        activePageId: 'page-1'
+      }
+    };
 
     try {
       const result = await createProject(projectData);
@@ -165,13 +299,12 @@ function EditorPage() {
           backgroundColor: '#FFFFFF',
           font: 'Inter'
         });
-        setDialogOpen(false);
+        setManualDialogOpen(false);
         setError('');
 
-        // Set as active project and reload
         dispatch(setActiveProject(result.id));
         if (result.id) {
-          await getProject(result.id);
+          await getProject(result.id, false);
           setRefreshKey(prev => prev + 1);
         }
       }
@@ -181,27 +314,9 @@ function EditorPage() {
     }
   };
 
-  const handleDialogClose = () => {
-    if (!creatingProject) {
-      setDialogOpen(false);
-      setError('');
-      setFormData({
-        name: '',
-        description: '',
-        primaryColor: '#1976d2',
-        secondaryColor: '#0F172A',
-        backgroundColor: '#FFFFFF',
-        font: 'Inter'
-      });
-    }
-  };
-
   const handleSave = () => {
-    if (project) {
-      console.log('💾 Manually saving project...');
-      const event = new CustomEvent('manual-save');
-      window.dispatchEvent(event);
-    }
+    const event = new CustomEvent('manual-save');
+    window.dispatchEvent(event);
   };
 
   const handleExportHTML = () => {
@@ -224,17 +339,17 @@ function EditorPage() {
     navigate('/dashboard');
   };
 
-  // Show loading state while fetching project
+  const toggleRightPanel = () => {
+    setRightPanelCollapsed(!rightPanelCollapsed);
+  };
+
+  const handleBuyCredits = () => {
+    navigate('/dashboard/buy-credits');
+  };
+
   if (loadingProject && !project) {
     return (
-      <Box sx={{
-        height: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexDirection: 'column',
-        gap: 2
-      }}>
+      <Box sx={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 2 }}>
         <CircularProgress />
         <Typography variant="body1" color="text.secondary">
           Loading project...
@@ -245,16 +360,10 @@ function EditorPage() {
 
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Top AppBar */}
       <AppBar position="static" elevation={0} sx={{ borderRadius: 0 }}>
         <Toolbar>
           <Tooltip title="Back to Dashboard">
-            <IconButton
-              edge="start"
-              color="inherit"
-              onClick={handleBackToDashboard}
-              sx={{ mr: 2 }}
-            >
+            <IconButton edge="start" color="inherit" onClick={handleBackToDashboard} sx={{ mr: 2 }}>
               <ArrowBack />
             </IconButton>
           </Tooltip>
@@ -262,6 +371,25 @@ function EditorPage() {
           <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 600 }}>
             Website Builder
           </Typography>
+
+          <Tooltip title="Available Credits">
+            <Chip
+              icon={<AccountBalanceWallet sx={{ color: 'white !important' }} />}
+              label={`${creditBalance.toLocaleString()} Credits`}
+              onClick={handleBuyCredits}
+              sx={{
+                mr: 2,
+                bgcolor: 'rgba(76, 175, 80, 0.2)',
+                color: 'white',
+                border: '1px solid rgba(76, 175, 80, 0.5)',
+                fontWeight: 600,
+                cursor: 'pointer',
+                '&:hover': {
+                  bgcolor: 'rgba(76, 175, 80, 0.3)',
+                }
+              }}
+            />
+          </Tooltip>
 
           {project ? (
             <Chip
@@ -275,48 +403,19 @@ function EditorPage() {
             />
           )}
 
-          {/* Device Toggle */}
-          <Box sx={{
-            display: 'flex',
-            gap: 1,
-            mr: 2,
-            bgcolor: 'rgba(255,255,255,0.1)',
-            borderRadius: 1,
-            p: 0.5
-          }}>
+          <Box sx={{ display: 'flex', gap: 1, mr: 2, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1, p: 0.5 }}>
             <Tooltip title="Desktop View">
-              <IconButton
-                size="small"
-                onClick={() => handleDeviceChange('Desktop')}
-                sx={{
-                  color: deviceMode === 'Desktop' ? theme.palette.primary.main : 'white',
-                  bgcolor: deviceMode === 'Desktop' ? 'white' : 'transparent'
-                }}
-              >
+              <IconButton size="small" onClick={() => handleDeviceChange('Desktop')} sx={{ color: deviceMode === 'Desktop' ? theme.palette.primary.main : 'white', bgcolor: deviceMode === 'Desktop' ? 'white' : 'transparent' }}>
                 <Computer />
               </IconButton>
             </Tooltip>
             <Tooltip title="Tablet View">
-              <IconButton
-                size="small"
-                onClick={() => handleDeviceChange('Tablet')}
-                sx={{
-                  color: deviceMode === 'Tablet' ? theme.palette.primary.main : 'white',
-                  bgcolor: deviceMode === 'Tablet' ? 'white' : 'transparent'
-                }}
-              >
+              <IconButton size="small" onClick={() => handleDeviceChange('Tablet')} sx={{ color: deviceMode === 'Tablet' ? theme.palette.primary.main : 'white', bgcolor: deviceMode === 'Tablet' ? 'white' : 'transparent' }}>
                 <Tablet />
               </IconButton>
             </Tooltip>
             <Tooltip title="Mobile View">
-              <IconButton
-                size="small"
-                onClick={() => handleDeviceChange('Mobile')}
-                sx={{
-                  color: deviceMode === 'Mobile' ? theme.palette.primary.main : 'white',
-                  bgcolor: deviceMode === 'Mobile' ? 'white' : 'transparent'
-                }}
-              >
+              <IconButton size="small" onClick={() => handleDeviceChange('Mobile')} sx={{ color: deviceMode === 'Mobile' ? theme.palette.primary.main : 'white', bgcolor: deviceMode === 'Mobile' ? 'white' : 'transparent' }}>
                 <Smartphone />
               </IconButton>
             </Tooltip>
@@ -329,33 +428,22 @@ function EditorPage() {
           </Tooltip>
 
           <Tooltip title="Save Project">
-            <IconButton
-              onClick={handleSave}
-              sx={{ color: 'white', mr: 1 }}
-              disabled={!project}
-            >
+            <IconButton onClick={handleSave} sx={{ color: 'white', mr: 1 }} disabled={!project}>
               <Save />
             </IconButton>
           </Tooltip>
 
           <Tooltip title="Export HTML">
-            <IconButton
-              onClick={handleExportHTML}
-              sx={{ color: 'white', mr: 2 }}
-              disabled={!project}
-            >
+            <IconButton onClick={handleExportHTML} sx={{ color: 'white', mr: 2 }} disabled={!project}>
               <Download />
             </IconButton>
           </Tooltip>
 
           <Button
             variant="contained"
-            sx={{
-              bgcolor: theme.palette.primary.dark,
-              '&:hover': { bgcolor: theme.palette.primary.main }
-            }}
+            sx={{ bgcolor: theme.palette.primary.dark, '&:hover': { bgcolor: theme.palette.primary.main } }}
             startIcon={<Add />}
-            onClick={() => setDialogOpen(true)}
+            onClick={handleCreateProjectClick}
             disabled={creatingProject}
           >
             New Project
@@ -363,240 +451,197 @@ function EditorPage() {
         </Toolbar>
       </AppBar>
 
-      {/* Editor Layout */}
       <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        {/* Left Sidebar - Blocks & Pages */}
         <LayoutPanel key={refreshKey} project={project} />
-
-        {/* Main Canvas - Workspace */}
         <Workspace ref={workspaceRef} project={project} />
 
-        {/* Right Sidebar - Properties Panel */}
-        <Box
-          sx={{
-            width: 280,
-            bgcolor: '#141924',
-            borderLeft: '1px solid #2a2a2a',
-            display: 'flex',
-            flexDirection: 'column',
-            height: '100%',
-            color: '#e0e0e0',
-            overflow: 'hidden'
+        {/* Properties Sidebar with Custom Scrollbar */}
+        <Box 
+          sx={{ 
+            width: rightPanelCollapsed ? 50 : 280, 
+            bgcolor: '#141924', 
+            borderLeft: '1px solid rgba(102, 126, 234, 0.2)',
+            display: 'flex', 
+            flexDirection: 'column', 
+            height: '100%', 
+            color: '#e0e0e0', 
+            overflow: 'hidden', 
+            transition: 'width 0.3s ease',
+            position: 'relative',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: '1px',
+              background: 'linear-gradient(180deg, rgba(102, 126, 234, 0.5) 0%, rgba(118, 75, 162, 0.5) 50%, rgba(102, 126, 234, 0.5) 100%)',
+              boxShadow: '0 0 10px rgba(102, 126, 234, 0.3)',
+            }
           }}
         >
-          {/* Properties Header */}
-          <Box sx={{
-            p: 2,
-            borderBottom: '1px solid #2a2a2a',
-            bgcolor: '#0d0d0d'
-          }}>
-            <Typography variant="h6" fontWeight="600" sx={{ color: '#e0e0e0' }}>
-              Properties
-            </Typography>
+          <Box 
+            sx={{ 
+              display: 'flex', 
+              justifyContent: rightPanelCollapsed ? 'center' : 'space-between', 
+              alignItems: 'center', 
+              p: 2, 
+              borderBottom: '1px solid #2a2a2a', 
+              bgcolor: '#0d0d0d',
+              background: 'linear-gradient(135deg, #0d0d0d 0%, #1a1a2e 100%)',
+            }}
+          >
+            {!rightPanelCollapsed && (
+              <Typography 
+                variant="h6" 
+                fontWeight="600" 
+                sx={{ 
+                  color: '#e0e0e0',
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                }}
+              >
+                Properties
+              </Typography>
+            )}
+            <IconButton 
+              onClick={toggleRightPanel} 
+              size="small" 
+              sx={{ 
+                color: '#e0e0e0',
+                '&:hover': {
+                  bgcolor: 'rgba(102, 126, 234, 0.1)',
+                  color: '#667eea',
+                }
+              }}
+            >
+              {rightPanelCollapsed ? <ChevronLeft /> : <ChevronRight />}
+            </IconButton>
           </Box>
 
-          {/* Style Manager */}
-          <Box
-            id="gjs-styles"
-            sx={{
-              flex: 1,
-              overflowY: 'auto',
-              '& .gjs-sm-sector': {
-                borderBottom: '1px solid #2a2a2a'
-              },
-              '& .gjs-sm-title': {
-                bgcolor: '#0d0d0d',
-                color: '#b0b0b0',
-                padding: '10px 12px',
-                fontSize: '11px',
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px'
-              },
-              '& .gjs-sm-property': {
-                color: '#e0e0e0',
-                padding: '8px 12px'
-              }
-            }}
-          />
-
-          {/* Layers */}
-          <Box
-            id="gjs-layers"
-            sx={{
-              height: 200,
-              borderTop: '1px solid #2a2a2a',
-              overflowY: 'auto',
-              bgcolor: '#0d0d0d'
-            }}
-          />
-
-          {/* Traits */}
-          <Box
-            id="gjs-traits"
-            sx={{
-              height: 150,
-              borderTop: '1px solid #2a2a2a',
-              overflowY: 'auto',
-              bgcolor: '#0d0d0d'
-            }}
-          />
-
-          {/* Selectors */}
-          <Box
-            id="gjs-selectors"
-            sx={{
-              borderTop: '1px solid #2a2a2a',
-              p: 1,
-              bgcolor: '#0d0d0d'
-            }}
-          />
+          <Collapse in={!rightPanelCollapsed} orientation="horizontal" sx={{ flex: 1 }}>
+            <Box sx={{ width: 280, height: '100%', display: 'flex', flexDirection: 'column' }}>
+              <Box 
+                id="gjs-styles" 
+                sx={{ 
+                  flex: 1, 
+                  overflowY: 'auto',
+                  ...customScrollbarStyles,
+                }} 
+              />
+              <Box 
+                id="gjs-layers" 
+                sx={{ 
+                  height: 200, 
+                  borderTop: '1px solid #2a2a2a', 
+                  overflowY: 'auto', 
+                  bgcolor: '#0d0d0d',
+                  ...customScrollbarStyles,
+                }} 
+              />
+              <Box 
+                id="gjs-traits" 
+                sx={{ 
+                  height: 150, 
+                  borderTop: '1px solid #2a2a2a', 
+                  overflowY: 'auto', 
+                  bgcolor: '#0d0d0d',
+                  ...customScrollbarStyles,
+                }} 
+              />
+              <Box 
+                id="gjs-selectors" 
+                sx={{ 
+                  borderTop: '1px solid #2a2a2a', 
+                  p: 1, 
+                  bgcolor: '#0d0d0d',
+                  overflowY: 'auto',
+                  ...customScrollbarStyles,
+                }} 
+              />
+            </Box>
+          </Collapse>
         </Box>
       </Box>
 
-      {/* Create Project Dialog */}
-      <Dialog
-        open={dialogOpen}
-        onClose={handleDialogClose}
-        maxWidth="md"
-        fullWidth
-      >
+      {/* Choice Dialog */}
+      <Dialog open={choiceDialogOpen} onClose={handleChoiceClose} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ textAlign: 'center', pb: 1 }}>Choose Creation Method</DialogTitle>
+        <DialogContent sx={{ pt: 3, pb: 3 }}>
+          <Grid container spacing={3}>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <Card sx={{ height: '100%', cursor: 'pointer', border: `2px solid ${theme.palette.divider}`, transition: 'all 0.3s ease', '&:hover': { borderColor: theme.palette.primary.main, transform: 'translateY(-4px)', boxShadow: theme.shadows[4] } }} onClick={handleChoiceAI}>
+                <CardContent sx={{ textAlign: 'center', py: 4 }}>
+                  <AutoAwesome sx={{ fontSize: 64, color: theme.palette.primary.main, mb: 2 }} />
+                  <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>AI Prompts</Typography>
+                  <Typography variant="body2" color="text.secondary">Let AI help you build your project with intelligent prompts</Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <Card sx={{ height: '100%', cursor: 'pointer', border: `2px solid ${theme.palette.divider}`, transition: 'all 0.3s ease', '&:hover': { borderColor: theme.palette.secondary.main, transform: 'translateY(-4px)', boxShadow: theme.shadows[4] } }} onClick={handleChoiceManual}>
+                <CardContent sx={{ textAlign: 'center', py: 4 }}>
+                  <EditNote sx={{ fontSize: 64, color: theme.palette.secondary.main, mb: 2 }} />
+                  <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>Manual Setup</Typography>
+                  <Typography variant="body2" color="text.secondary">Configure your project settings manually</Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={handleChoiceClose}>Cancel</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Manual Creation Dialog */}
+      <Dialog open={manualDialogOpen} onClose={handleManualDialogClose} maxWidth="md" fullWidth>
         <DialogTitle>Create New Project</DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
-            </Alert>
-          )}
-
+          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
           <Grid container spacing={2}>
-            {/* Project Name */}
-            <Grid item xs={12}>
-              <TextField
-                autoFocus
-                label="Project Name"
-                fullWidth
-                variant="outlined"
-                placeholder="e.g., My Awesome Landing Page"
-                value={formData.name}
-                onChange={handleInputChange('name')}
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter' && !creatingProject && formData.name.trim()) {
-                    handleCreateProject();
-                  }
-                }}
-                disabled={creatingProject}
-                required
-                error={!formData.name.trim() && error !== ''}
-                helperText="This will be the main name of your project"
-              />
+            <Grid size={{ xs: 12 }}>
+              <TextField autoFocus label="Project Name" fullWidth placeholder="e.g., My Awesome Landing Page" value={formData.name} onChange={handleInputChange('name')} disabled={creatingProject} required error={!formData.name.trim() && error !== ''} />
             </Grid>
-
-            {/* Description */}
-            <Grid item xs={12}>
-              <TextField
-                label="Description"
-                fullWidth
-                variant="outlined"
-                placeholder="Brief description of your project"
-                value={formData.description}
-                onChange={handleInputChange('description')}
-                disabled={creatingProject}
-                multiline
-                rows={2}
-                helperText="Optional: Describe what this project is about"
-              />
+            <Grid size={{ xs: 12 }}>
+              <TextField label="Description" fullWidth placeholder="Brief description of your project" value={formData.description} onChange={handleInputChange('description')} disabled={creatingProject} multiline rows={2} />
             </Grid>
-
-            {/* Theme Colors */}
-            <Grid item xs={12}>
-              <Typography variant="subtitle2" gutterBottom sx={{ mt: 1 }}>
-                Theme Colors
-              </Typography>
+            <Grid size={{ xs: 12 }}>
+              <Typography variant="subtitle2" gutterBottom sx={{ mt: 1 }}>Theme Colors</Typography>
             </Grid>
-
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <Box>
-                <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
-                  Primary Color
-                </Typography>
+                <Typography variant="caption" color="text.secondary" display="block" gutterBottom>Primary Color</Typography>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <TextField
-                    type="color"
-                    value={formData.primaryColor}
-                    onChange={handleInputChange('primaryColor')}
-                    disabled={creatingProject}
-                    sx={{ width: 60 }}
-                  />
-                  <TextField
-                    size="small"
-                    value={formData.primaryColor}
-                    onChange={handleInputChange('primaryColor')}
-                    disabled={creatingProject}
-                    sx={{ flex: 1 }}
-                  />
+                  <TextField type="color" value={formData.primaryColor} onChange={handleInputChange('primaryColor')} disabled={creatingProject} sx={{ width: 60 }} />
+                  <TextField size="small" value={formData.primaryColor} onChange={handleInputChange('primaryColor')} disabled={creatingProject} sx={{ flex: 1 }} />
                 </Box>
               </Box>
             </Grid>
-
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <Box>
-                <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
-                  Secondary Color
-                </Typography>
+                <Typography variant="caption" color="text.secondary" display="block" gutterBottom>Secondary Color</Typography>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <TextField
-                    type="color"
-                    value={formData.secondaryColor}
-                    onChange={handleInputChange('secondaryColor')}
-                    disabled={creatingProject}
-                    sx={{ width: 60 }}
-                  />
-                  <TextField
-                    size="small"
-                    value={formData.secondaryColor}
-                    onChange={handleInputChange('secondaryColor')}
-                    disabled={creatingProject}
-                    sx={{ flex: 1 }}
-                  />
+                  <TextField type="color" value={formData.secondaryColor} onChange={handleInputChange('secondaryColor')} disabled={creatingProject} sx={{ width: 60 }} />
+                  <TextField size="small" value={formData.secondaryColor} onChange={handleInputChange('secondaryColor')} disabled={creatingProject} sx={{ flex: 1 }} />
                 </Box>
               </Box>
             </Grid>
-
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <Box>
-                <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
-                  Background Color
-                </Typography>
+                <Typography variant="caption" color="text.secondary" display="block" gutterBottom>Background Color</Typography>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <TextField
-                    type="color"
-                    value={formData.backgroundColor}
-                    onChange={handleInputChange('backgroundColor')}
-                    disabled={creatingProject}
-                    sx={{ width: 60 }}
-                  />
-                  <TextField
-                    size="small"
-                    value={formData.backgroundColor}
-                    onChange={handleInputChange('backgroundColor')}
-                    disabled={creatingProject}
-                    sx={{ flex: 1 }}
-                  />
+                  <TextField type="color" value={formData.backgroundColor} onChange={handleInputChange('backgroundColor')} disabled={creatingProject} sx={{ width: 60 }} />
+                  <TextField size="small" value={formData.backgroundColor} onChange={handleInputChange('backgroundColor')} disabled={creatingProject} sx={{ flex: 1 }} />
                 </Box>
               </Box>
             </Grid>
-
-            {/* Font Selection */}
-            <Grid item xs={12}>
+            <Grid size={{ xs: 12 }}>
               <FormControl fullWidth>
                 <InputLabel>Font Family</InputLabel>
-                <Select
-                  value={formData.font}
-                  onChange={handleInputChange('font')}
-                  disabled={creatingProject}
-                  label="Font Family"
-                >
+                <Select value={formData.font} onChange={handleInputChange('font')} disabled={creatingProject} label="Font Family">
                   <MenuItem value="Inter">Inter</MenuItem>
                   <MenuItem value="Roboto">Roboto</MenuItem>
                   <MenuItem value="Open Sans">Open Sans</MenuItem>
@@ -610,18 +655,8 @@ function EditorPage() {
           </Grid>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button
-            onClick={handleDialogClose}
-            disabled={creatingProject}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleCreateProject}
-            variant="contained"
-            disabled={!formData.name.trim() || creatingProject}
-            startIcon={creatingProject ? <CircularProgress size={20} color="inherit" /> : <Add />}
-          >
+          <Button onClick={handleManualDialogClose} disabled={creatingProject}>Cancel</Button>
+          <Button onClick={handleCreateProject} variant="contained" disabled={!formData.name.trim() || creatingProject} startIcon={creatingProject ? <CircularProgress size={20} color="inherit" /> : <Add />}>
             {creatingProject ? 'Creating...' : 'Create Project'}
           </Button>
         </DialogActions>

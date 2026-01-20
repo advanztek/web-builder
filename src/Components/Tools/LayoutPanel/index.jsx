@@ -123,14 +123,13 @@ export const LayoutPanel = ({ project }) => {
         [newPageId]: newPage
       };
 
-      // Prepare full update data
+      // ✅ FIXED: Pass only the pages update
       const updateData = {
-        ...(project.data || {}),
         pages: updatedPages
       };
 
-      // Update backend with new page
-      const result = await updateProject(projectId, updateData);
+      // ✅ Pass project as third parameter
+      const result = await updateProject(projectId, updateData, project, 'manual');
       
       if (result) {
         console.log('✅ Page added successfully');
@@ -199,7 +198,7 @@ export const LayoutPanel = ({ project }) => {
       // Get current pages
       const currentPages = project.data?.pages || project.pages || {};
       
-      // Update backend
+      // Update the specific page
       const updatedPages = {
         ...currentPages,
         [selectedPageId]: {
@@ -210,12 +209,13 @@ export const LayoutPanel = ({ project }) => {
         }
       };
 
+      // ✅ FIXED: Pass only pages update
       const updateData = {
-        ...(project.data || {}),
         pages: updatedPages
       };
 
-      const result = await updateProject(projectId, updateData);
+      // ✅ Pass project as third parameter for complete data
+      const result = await updateProject(projectId, updateData, project, 'manual');
 
       if (result) {
         console.log('✅ Page renamed successfully');
@@ -247,16 +247,17 @@ export const LayoutPanel = ({ project }) => {
       if (page && !page.isHome) {
         console.log('🗑️ Deleting page:', page.name);
 
-        // Update backend
+        // Create updated pages without the deleted page
         const updatedPages = { ...pages };
         delete updatedPages[menuPageId];
 
+        // ✅ FIXED: Pass only pages update
         const updateData = {
-          ...(project.data || {}),
           pages: updatedPages
         };
 
-        const result = await updateProject(projectId, updateData);
+        // ✅ Pass project as third parameter
+        const result = await updateProject(projectId, updateData, project, 'manual');
         
         if (result) {
           console.log('✅ Page deleted successfully');
@@ -337,13 +338,13 @@ export const LayoutPanel = ({ project }) => {
       const updatedFiles = [...uploadedFiles, ...newFiles];
       setUploadedFiles(updatedFiles);
 
-      // Update project in backend
+      // ✅ FIXED: Pass only gallery update
       const updateData = {
-        ...(project.data || {}),
         gallery: updatedFiles
       };
 
-      await updateProject(project.id, updateData);
+      // ✅ Pass project as third parameter
+      await updateProject(project.id, updateData, project, 'manual');
       showToast.success(`${newFiles.length} file(s) uploaded!`);
       
       // Trigger project refresh
@@ -367,13 +368,13 @@ export const LayoutPanel = ({ project }) => {
     const updatedFiles = uploadedFiles.filter(f => f.id !== fileId);
     setUploadedFiles(updatedFiles);
 
-    // Update project in backend
+    // ✅ FIXED: Pass only gallery update
     const updateData = {
-      ...(project.data || {}),
       gallery: updatedFiles
     };
 
-    await updateProject(project.id, updateData);
+    // ✅ Pass project as third parameter
+    await updateProject(project.id, updateData, project, 'manual');
     showToast.success('File deleted');
     
     // Trigger project refresh

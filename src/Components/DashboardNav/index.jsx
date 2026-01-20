@@ -6,28 +6,47 @@ import {
     TextField,
     InputAdornment,
     useTheme,
+    Typography,
+    Card,
+    Container,
 } from '@mui/material';
 import {
     LightMode,
     DarkMode,
     Logout,
+    ShoppingCart,
+    AccountBalanceWallet,
 } from '@mui/icons-material';
 import { useThemeContext } from '../../Context';
 import { Person20Regular, Search20Regular } from '@fluentui/react-icons';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useLogout } from '../../Hooks/auth';
 
 const DashboardNav = () => {
     const { mode, toggleTheme } = useThemeContext();
     const theme = useTheme();
+    const creditBalance = 120;
+
+    const handleBuyCredits = () => {
+        navigate('/dashboard/credits');
+    };
     const navigate = useNavigate();
     const location = useLocation();
+    const { logout } = useLogout();
 
     const isEditorView = location.pathname.includes('/editor');
 
-    // Don't render header if in editor view
     if (isEditorView) {
         return null;
     }
+
+    const handleLogout = () => {
+        logout();
+    };
+
+    const handleProfile = () => {
+        navigate('/profile');
+    };
 
     return (
         <Box
@@ -42,86 +61,97 @@ const DashboardNav = () => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                px: 3,
+              
                 zIndex: 1200,
             }}
         >
-            {/* Dashboard View - Left Side */}
-            <TextField
-                placeholder="Search projects..."
-                size="small"
-                sx={{
-                    maxWidth: '400px',
-                    flex: 1,
-                    '& .MuiOutlinedInput-root': {
-                        bgcolor: theme.palette.action.hover,
-                        '& fieldset': {
-                            border: 'none',
-                        },
-                    },
-                }}
-                InputProps={{
-                    startAdornment: (
-                        <InputAdornment position="start">
-                            <Search20Regular style={{ color: theme.palette.text.secondary }} />
-                        </InputAdornment>
-                    ),
-                }}
-            />
+            <Container maxWidth="xl" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Typography onClick={() => navigate('/dashboard')} sx={{ cursor: 'pointer', fontWeight: 700, fontSize: '1.5rem' }}>WEB BUILDER</Typography>
 
-            {/* Dashboard View - Right Side */}
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                <IconButton
-                    onClick={toggleTheme}
-                    sx={{
-                        color: theme.palette.text.secondary,
-                        transition: 'all 0.3s ease',
-                        '&:hover': {
+                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                    <IconButton
+                        onClick={toggleTheme}
+                        sx={{
+                            color: theme.palette.text.secondary,
+                            transition: 'all 0.3s ease',
+                            '&:hover': {
+                                color: theme.palette.primary.main,
+                                bgcolor: theme.palette.action.hover,
+                                transform: 'rotate(180deg)',
+                            },
+                        }}
+                    >
+                        {mode === 'dark' ? <LightMode sx={{ fontSize: 24 }} /> : <DarkMode sx={{ fontSize: 24 }} />}
+                    </IconButton>
+                    <Card sx={{ px: 1.5, py: 1, bgcolor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, cursor: 'pointer' }} onClick={handleBuyCredits}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
+                            <AccountBalanceWallet color="primary" />
+                            <Box>
+                                <Typography onClick={handleBuyCredits} variant="h6" fontWeight={600}>
+                                    {creditBalance} Credits
+                                </Typography>
+                            </Box>
+                        </Box>
+                    </Card>
+                    <Button
+                        variant="contained"
+                        onClick={() => navigate('/dashboard/credits')}
+                        startIcon={<ShoppingCart />}
+                        sx={{ height: 'fit-content' }}
+                    >
+                        Buy Credits
+                    </Button>
+                    <Button
+                        variant="outlined"
+                        onClick={handleProfile}
+                        sx={{
+                            border: '3px solid',
+                            borderColor: theme.palette.primary.main,
+                            borderRadius: '50%',
                             color: theme.palette.primary.main,
-                            bgcolor: theme.palette.action.hover,
-                            transform: 'rotate(180deg)',
-                        },
-                    }}
-                >
-                    {mode === 'dark' ? <LightMode sx={{ fontSize: 24 }} /> : <DarkMode sx={{ fontSize: 24 }} />}
-                </IconButton>
-                <Button
-                    variant="contained"
-                    sx={{
-                        bgcolor: theme.palette.primary.dark,
-                        color: theme.palette.primary.contrastText,
-                        textTransform: 'none',
-                        px: 2,
-                        fontWeight: 600,
-                        gap: 1,
-                        '&:hover': {
-                            bgcolor: theme.palette.primary.main,
-                        },
-                    }}
-                >
-                    <Person20Regular />
-                    Profile
-                </Button>
-                <Button
-                    variant="contained"
-                    sx={{
-                        bgcolor: theme.palette.error.main,
-                        color: theme.palette.common.white,
-                        textTransform: 'none',
-                        px: 2,
-                        fontWeight: 600,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 1,
-                        '&:hover': {
-                            bgcolor: theme.palette.error.dark,
-                        },
-                    }}
-                >
-                    <Logout fontSize="small" />
-                    Logout
-                </Button>
-            </Box>
+                            bgcolor: 'transparent',
+                            minWidth: '44px',
+                            width: '44px',
+                            height: '44px',
+                            padding: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.3s ease',
+                            '&:hover': {
+                                border: '3px solid',
+                                borderColor: theme.palette.primary.dark,
+                                bgcolor: theme.palette.primary.main,
+                                color: 'white',
+                                transform: 'scale(1.1)',
+                                boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
+                            },
+                        }}
+                    >
+                        <Person20Regular />
+                    </Button>
+                    <Button
+                        variant="contained"
+                        onClick={handleLogout}
+                        sx={{
+                            bgcolor: theme.palette.error.main,
+                            color: theme.palette.common.white,
+                            textTransform: 'none',
+                            px: 2,
+                            fontWeight: 600,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
+                            '&:hover': {
+                                bgcolor: theme.palette.error.dark,
+                            },
+                        }}
+                    >
+                        <Logout fontSize="small" />
+                        Logout
+                    </Button>
+                </Box>
+            </Container>
         </Box>
     );
 };

@@ -1,7 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 import Dashboard from "../Components/Dashboard";
 import DashboardLayout from "../Layout/DashboardLayout";
-import { EditorPage } from "../Pages/Dashboard";
+import { BuyCreditsPage, CheckoutPage, EditorPage } from "../Pages/Dashboard";
 import PromptsPage from "../Pages/Dashboard/Prompts";
 
 const DashboardRoutes = () => {
@@ -10,9 +10,11 @@ const DashboardRoutes = () => {
       <Route element={<DashboardLayout />}>
         <Route index element={<Dashboard />} />
         <Route path="editor/:slug" element={<EditorPage />} />
+        <Route path="credits" element={<BuyCreditsPage />} />
+        <Route path="checkout" element={<CheckoutPage />} />
       </Route>
 
-      <Route path="prompts/:slug" element={<PromptsPage />} />
+      <Route path="prompts" element={<PromptsPage />} />
     </Routes>
   );
 };

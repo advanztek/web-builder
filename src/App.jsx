@@ -16,7 +16,7 @@ function App() {
         <BrowserRouter>
           <CssBaseline />
           <ToastContainer />
-          <Router />
+            <Router />
         </BrowserRouter>
       </Provider>
     </ThemeProvider>
