@@ -150,7 +150,7 @@ const ProfilePage = () => {
         <Box sx={{ minHeight: '100vh', bgcolor: theme.palette.background.default, pb: 6 }}>
             <Box
                 sx={{
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    background: 'linear-gradient(135deg, #03104bff 0%, #020220ff 100%)',
                     height: 280,
                     position: 'relative',
                     overflow: 'hidden',
@@ -218,9 +218,10 @@ const ProfilePage = () => {
                                                 height: 140,
                                                 margin: '0 auto',
                                                 mb: 2,
+                                                color: '#fff',
                                                 border: '5px solid white',
                                                 boxShadow: theme.shadows[8],
-                                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                                background: 'linear-gradient(135deg, #07175eff 0%, #000000ff 100%)',
                                                 fontSize: '3rem',
                                                 fontWeight: 700,
                                             }}
@@ -238,7 +239,7 @@ const ProfilePage = () => {
                                         icon={<Verified />}
                                         sx={{
                                             mb: 3,
-                                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                            background: 'linear-gradient(135deg, #07175eff 0%, #000000ff 100%)',
                                             color: 'white',
                                             fontWeight: 600,
                                         }}
@@ -247,7 +248,7 @@ const ProfilePage = () => {
                                     {/* Stats */}
                                     <Grid container spacing={2} sx={{ mb: 3 }}>
                                         <Grid size={{ xs:4 }}>
-                                            <Paper elevation={0} sx={{ p: 2, bgcolor: theme.palette.grey[50], borderRadius: 2 }}>
+                                            <Paper elevation={0} sx={{ p: 2, background: 'linear-gradient(135deg, #07175eff 0%, #000000ff 100%)', borderRadius: 2 }}>
                                                 <Typography variant="h6" fontWeight={700} color="primary">
                                                     {profileData.totalProjects}
                                                 </Typography>
@@ -257,7 +258,7 @@ const ProfilePage = () => {
                                             </Paper>
                                         </Grid>
                                         <Grid size={{ xs:4 }}>
-                                            <Paper elevation={0} sx={{ p: 2, bgcolor: theme.palette.grey[50], borderRadius: 2 }}>
+                                            <Paper elevation={0} sx={{ p: 2, bgcolor: '', borderRadius: 2 }}>
                                                 <Typography variant="h6" fontWeight={700} color="success.main">
                                                     {profileData.completedProjects}
                                                 </Typography>
@@ -267,7 +268,7 @@ const ProfilePage = () => {
                                             </Paper>
                                         </Grid>
                                         <Grid size={{ xs:4 }}>
-                                            <Paper elevation={0} sx={{ p: 2, bgcolor: theme.palette.grey[50], borderRadius: 2 }}>
+                                            <Paper elevation={0} sx={{ p: 2, background: 'linear-gradient(135deg, #07175eff 0%, #000000ff 100%)', borderRadius: 2 }}>
                                                 <Typography variant="h6" fontWeight={700} color="warning.main">
                                                     {profileData.credits}
                                                 </Typography>
@@ -380,7 +381,6 @@ const ProfilePage = () => {
                                 </Box>
 
                                 <CardContent sx={{ p: 4 }}>
-                                    {/* Tab 0: Edit Profile */}
                                     {activeTab === 0 && (
                                         <Box>
                                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -393,7 +393,8 @@ const ProfilePage = () => {
                                                         startIcon={<Edit />}
                                                         onClick={() => setEditMode(true)}
                                                         sx={{
-                                                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                                            color: '#fff',
+                                                            background: 'linear-gradient(135deg, #07175eff 0%, #000000ff 100%)',
                                                         }}
                                                     >
                                                         Edit Profile
@@ -412,7 +413,7 @@ const ProfilePage = () => {
                                                             startIcon={<Save />}
                                                             onClick={handleSaveProfile}
                                                             sx={{
-                                                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                                                background: 'linear-gradient(135deg, #07175eff 0%, #000000ff 100%)',
                                                             }}
                                                         >
                                                             Save Changes
@@ -422,7 +423,7 @@ const ProfilePage = () => {
                                             </Box>
 
                                             <Grid container spacing={3}>
-                                                <Grid item xs={12} sm={6}>
+                                                <Grid size={{ xs:12, sm:6 }}>
                                                     <TextField
                                                         fullWidth
                                                         label="First Name"
@@ -431,7 +432,7 @@ const ProfilePage = () => {
                                                         disabled={!editMode}
                                                     />
                                                 </Grid>
-                                                <Grid item xs={12} sm={6}>
+                                                <Grid size={{ xs:12, sm:6 }}>
                                                     <TextField
                                                         fullWidth
                                                         label="Last Name"
@@ -440,7 +441,7 @@ const ProfilePage = () => {
                                                         disabled={!editMode}
                                                     />
                                                 </Grid>
-                                                <Grid item xs={12}>
+                                                <Grid size={{ xs:12 }}>
                                                     <TextField
                                                         fullWidth
                                                         label="Email"
@@ -453,7 +454,7 @@ const ProfilePage = () => {
                                                         }}
                                                     />
                                                 </Grid>
-                                                <Grid item xs={12} sm={6}>
+                                                <Grid size={{ xs:12, sm:6 }}>
                                                     <TextField
                                                         fullWidth
                                                         label="Phone"
@@ -465,7 +466,7 @@ const ProfilePage = () => {
                                                         }}
                                                     />
                                                 </Grid>
-                                                <Grid item xs={12} sm={6}>
+                                                <Grid size={{ xs:12, sm:6 }}>
                                                     <TextField
                                                         fullWidth
                                                         label="Location"
@@ -477,7 +478,7 @@ const ProfilePage = () => {
                                                         }}
                                                     />
                                                 </Grid>
-                                                <Grid item xs={12} sm={6}>
+                                                <Grid size={{ xs:12, sm:6 }}>
                                                     <TextField
                                                         fullWidth
                                                         label="Company"
@@ -489,7 +490,7 @@ const ProfilePage = () => {
                                                         }}
                                                     />
                                                 </Grid>
-                                                <Grid item xs={12} sm={6}>
+                                                <Grid size={{ xs:12, sm:6 }}>
                                                     <TextField
                                                         fullWidth
                                                         label="Website"
@@ -501,12 +502,10 @@ const ProfilePage = () => {
                                                         }}
                                                     />
                                                 </Grid>
-                                                <Grid item xs={12}>
+                                                <Grid size={{ xs:12 }}>
                                                     <TextField
                                                         fullWidth
                                                         label="Bio"
-                                                        multiline
-                                                        rows={4}
                                                         value={profileData.bio}
                                                         onChange={handleInputChange('bio')}
                                                         disabled={!editMode}
@@ -540,7 +539,7 @@ const ProfilePage = () => {
                                                 Account Settings
                                             </Typography>
 
-                                            <Paper elevation={0} sx={{ p: 3, mb: 3, bgcolor: theme.palette.grey[50], borderRadius: 2 }}>
+                                            <Paper elevation={0} sx={{ p: 3, mb: 3, background: 'linear-gradient(135deg, #07175eff 0%, #000000ff 100%)', borderRadius: 2 }}>
                                                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                                                     <Notifications color="primary" sx={{ mr: 2 }} />
                                                     <Typography variant="h6" fontWeight={600}>
@@ -576,7 +575,7 @@ const ProfilePage = () => {
                                                 />
                                             </Paper>
 
-                                            <Paper elevation={0} sx={{ p: 3, mb: 3, bgcolor: theme.palette.grey[50], borderRadius: 2 }}>
+                                            <Paper elevation={0} sx={{ p: 3, mb: 3, background: 'linear-gradient(135deg, #07175eff 0%, #000000ff 100%)', borderRadius: 2 }}>
                                                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                                                     <Security color="primary" sx={{ mr: 2 }} />
                                                     <Typography variant="h6" fontWeight={600}>
@@ -591,7 +590,7 @@ const ProfilePage = () => {
                                                 </Button>
                                             </Paper>
 
-                                            <Paper elevation={0} sx={{ p: 3, mb: 3, bgcolor: theme.palette.grey[50], borderRadius: 2 }}>
+                                            <Paper elevation={0} sx={{ p: 3, mb: 3, background: 'linear-gradient(135deg, #07175eff 0%, #000000ff 100%)', borderRadius: 2 }}>
                                                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                                                     <Palette color="primary" sx={{ mr: 2 }} />
                                                     <Typography variant="h6" fontWeight={600}>
@@ -633,7 +632,7 @@ const ProfilePage = () => {
 
                                             <Grid container spacing={3}>
                                                 {achievements.map((achievement, index) => (
-                                                    <Grid item xs={12} sm={6} key={index}>
+                                                    <Grid size={{ xs:12, sm:6 }} key={index}>
                                                         <Zoom in timeout={600 + index * 100}>
                                                             <Paper
                                                                 elevation={2}
@@ -663,7 +662,7 @@ const ProfilePage = () => {
                                                 ))}
                                             </Grid>
 
-                                            <Box sx={{ mt: 4, p: 3, bgcolor: theme.palette.grey[50], borderRadius: 3 }}>
+                                            <Box sx={{ mt: 4, p: 3, background: 'linear-gradient(135deg, #07175eff 0%, #000000ff 100%)', borderRadius: 3 }}>
                                                 <Typography variant="h6" fontWeight={600} gutterBottom>
                                                     Next Achievement
                                                 </Typography>
@@ -704,7 +703,7 @@ const ProfilePage = () => {
                             variant="contained"
                             startIcon={<CloudUpload />}
                             sx={{
-                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                background: 'linear-gradient(135deg, #07175eff 0%, #000000ff 100%)',
                                 px: 4,
                                 py: 1.5,
                             }}

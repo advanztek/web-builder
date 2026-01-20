@@ -45,7 +45,7 @@ const DashboardNav = () => {
     };
 
     const handleProfile = () => {
-        navigate('/profile');
+        navigate('/dashboard/profile');
     };
 
     return (
