@@ -2,6 +2,8 @@ import { useState, useRef, useCallback, useEffect  } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { showToast } from '../Utils/toast';
 import { BASE_SERVER_URL } from '../Config/url';
+import { useDispatch } from 'react-redux';
+import { useLoader } from '../Context/LoaderContext';
 // Utility function for API calls
 const apiCall = async (endpoint, data, method = 'POST', contentType = 'application/json') => {
   const options = {
@@ -112,111 +114,55 @@ export const useLogin = () => {
 
 
 export const useGoogleAuth = () => {
-  const [loading, setLoading] = useState(false);
-  const popupRef = useRef(null);
-  const intervalRef = useRef(null);
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const { showLoader, hideLoader } = useLoader();
 
-  const cleanup = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-
-    window.removeEventListener('message', handleMessage);
-
-    if (popupRef.current && !popupRef.current.closed) {
-      popupRef.current.close();
-    }
-
-    popupRef.current = null;
-  }, []);
-
-  const handleMessage = useCallback((event) => {
-    // Accept messages from backend or same-origin redirect page
-    const allowedOrigins = [
-      window.location.origin,
-      BASE_SERVER_URL
-    ];
-
-    if (!allowedOrigins.some(origin => event.origin.startsWith(origin))) {
-      return;
-    }
-
-    const { type, result, message } = event.data || {};
-
-    if (type === 'GOOGLE_AUTH_SUCCESS') {
-      const { token, user } = result || {};
-
-      if (!token) {
-        showToast.error('Google login failed: missing token');
-        cleanup();
-        setLoading(false);
-        return;
+  return async (googleAccessToken) => {
+    try {
+      showLoader();
+      if (!googleAccessToken) {
+        throw new Error("Google access token is required");
       }
 
-      localStorage.setItem('token', token);
-      localStorage.setItem('authToken', token);
-      localStorage.setItem('user', JSON.stringify(user));
+     g
 
-      showToast.success(`Welcome ${user?.firstname || user?.email || 'back'}!`);
+      const result = response.data;
+      console.log(response);
 
-      cleanup();
-      setLoading(false);
-
-      navigate('/dashboard', { replace: true });
-    }
-
-    if (type === 'GOOGLE_AUTH_ERROR') {
-      showToast.error(message || 'Google login failed');
-
-      cleanup();
-      setLoading(false);
-    }
-  }, [cleanup, navigate]);
-
-  const loginWithGoogle = useCallback(() => {
-    if (loading) return;
-
-    setLoading(true);
-
-    const googleAuthUrl = `${BASE_SERVER_URL}/V1/auth/google`;
-
-    const width = 500;
-    const height = 650;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
-
-    popupRef.current = window.open(
-      googleAuthUrl,
-      'GoogleAuthPopup',
-      `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
-    );
-
-    if (!popupRef.current) {
-      showToast.error('Popup blocked! Please allow popups for this site.');
-      setLoading(false);
-      return;
-    }
-
-    window.addEventListener('message', handleMessage);
-
-    // Detect manual close or backend redirect flow
-    intervalRef.current = setInterval(() => {
-      if (!popupRef.current || popupRef.current.closed) {
-        cleanup();
-        setLoading(false);
+      if (result?.code && result.code !== 0) {
+        showToast.error(result.message || "Google authentication failed");
+        return false;
       }
-    }, 500);
-  }, [loading, handleMessage, cleanup]);
 
-  useEffect(() => {
-    return () => cleanup();
-  }, [cleanup]);
+      console.log("Google login result:", result);
 
-  return {
-    loginWithGoogle,
-    loading
+      if (result?.code === 0) {
+        showToast.success(result.message || "Signed in with Google");
+        dispatch(setUser(result.result));
+        const user = result.result.user;
+        if (user?.role == 1 || user?.role == 2) {
+          return navigate("/dashboard");
+        } else {
+          return navigate("/dashboard/user/overview");
+        }
+      }
+
+      showToast.success();
+      return true;
+    } catch (error) {
+      console.error("Google Auth Error:", error);
+
+      const message =
+        error?.response?.data?.message ||
+        error.message ||
+        "Google authentication failed";
+
+      showToast.error(message);
+      return false;
+    } finally {
+      hideLoader();
+    }
   };
 };
 

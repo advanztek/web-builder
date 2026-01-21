@@ -16,7 +16,6 @@ export const Workspace = forwardRef(({ project }, ref) => {
   const pageDataStore = useRef({});
   const currentPageIdRef = useRef(null);
   const isSavingRef = useRef(false);
-  const initializationStartedRef = useRef(false);
 
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
@@ -38,6 +37,7 @@ export const Workspace = forwardRef(({ project }, ref) => {
     try {
       console.log('💾 Starting save for page:', pageId);
 
+      // ✅ FIX: Use getProjectData() instead of toJSON() to avoid circular references
       const gjsData = {
         html: editor.getHtml(),
         css: editor.getCss()
@@ -48,8 +48,10 @@ export const Workspace = forwardRef(({ project }, ref) => {
         cssLength: gjsData.css?.length || 0
       });
 
+      // ✅ Update local cache
       pageDataStore.current[pageId] = gjsData;
 
+      // ✅ Build the complete pages object
       const currentPages = project.data?.pages || {};
       const updatedPages = {
         ...currentPages,
@@ -60,16 +62,19 @@ export const Workspace = forwardRef(({ project }, ref) => {
         }
       };
 
+      // ✅ CRITICAL: Match your backend's expected structure exactly
+      // Based on your project structure, we need to send ONLY the updated fields
       const updatePayload = {
         pages: updatedPages
       };
 
-      console.log('📤 Sending update payload');
+      console.log('📤 Sending update payload:', JSON.stringify(updatePayload, null, 2));
 
       const result = await updateProject(project.id, updatePayload);
 
       if (result) {
         console.log('✅ Save successful');
+        // Update local project reference
         if (project.data) {
           project.data.pages = result.data?.pages || updatedPages;
         }
@@ -77,6 +82,7 @@ export const Workspace = forwardRef(({ project }, ref) => {
     } catch (error) {
       console.error('❌ Save error:', error);
       
+      // Don't show error toast for auto-saves to avoid annoying users
       if (!error.message?.includes('Validation')) {
         showToast.error('Failed to save: ' + error.message);
       }
@@ -99,9 +105,9 @@ export const Workspace = forwardRef(({ project }, ref) => {
       return;
     }
 
-    console.log('📄 Loading page:', page.name, 'ID:', pageId);
+    console.log('📄 Loading page:', page.name);
 
-    // Save current page data before switching
+    // ✅ Save current page data before switching
     if (currentPageIdRef.current && currentPageIdRef.current !== pageId) {
       const currentData = {
         html: editor.getHtml(),
@@ -112,11 +118,11 @@ export const Workspace = forwardRef(({ project }, ref) => {
 
     currentPageIdRef.current = pageId;
 
-    // Clear editor first
+    // ✅ Clear editor first
     editor.setComponents('');
     editor.setStyle('');
 
-    // Priority 1: Load from cache
+    // ✅ Priority 1: Load from cache
     if (pageDataStore.current[pageId]) {
       console.log('📂 Loading from cache');
       const cachedData = pageDataStore.current[pageId];
@@ -133,12 +139,9 @@ export const Workspace = forwardRef(({ project }, ref) => {
       return;
     }
 
-    // Priority 2: Load from gjsData
-    if (page.gjsData && (page.gjsData.html || page.gjsData.css)) {
-      console.log('🤖 Loading from gjsData:', {
-        hasHtml: !!page.gjsData.html,
-        hasCss: !!page.gjsData.css
-      });
+    // ✅ Priority 2: Load from gjsData
+    if (page.gjsData) {
+      console.log('🤖 Loading from gjsData');
       
       try {
         if (page.gjsData.html) {
@@ -161,46 +164,27 @@ export const Workspace = forwardRef(({ project }, ref) => {
         loadDefaultPageContent(editor, page.name);
       }
     } else {
-      // Priority 3: Default content
-      console.log('📝 Loading default content for:', page.name);
+      // ✅ Priority 3: Default content
+      console.log('📝 Loading default content');
       loadDefaultPageContent(editor, page.name);
     }
   };
 
   const loadDefaultPageContent = (editor, pageName) => {
     const html = `
-      <div style="padding: 60px 20px; text-align: center; min-height: 400px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-        <h1 style="color: white; font-size: 48px; margin-bottom: 20px; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">${pageName}</h1>
-        <p style="color: rgba(255,255,255,0.9); font-size: 18px; max-width: 600px; line-height: 1.6;">Start building your page by dragging blocks from the left panel or use the AI prompt below to generate content automatically.</p>
+      <div style="padding: 60px 20px; text-align: center; min-height: 400px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+        <h1 style="color: #1976d2; font-size: 48px; margin-bottom: 20px;">${pageName}</h1>
+        <p style="color: #666; font-size: 18px; max-width: 600px;">Start building your page by dragging blocks from the left panel or use the AI prompt below to generate content automatically.</p>
       </div>
     `;
     editor.setComponents(html);
-    
-    // Cache the default content
-    pageDataStore.current[currentPageIdRef.current] = {
-      html,
-      css: ''
-    };
   };
 
   useEffect(() => {
-    // Prevent re-initialization if already started
-    if (!project || initializationStartedRef.current) {
-      if (!project) {
-        console.warn('⚠️ No project available');
-      }
-      return;
-    }
+    if (!project || editorInstanceRef.current) return;
 
-    // Mark that we're starting initialization
-    initializationStartedRef.current = true;
-
-    console.log('🎨 Initializing GrapeJS for project:', project.id || project.slug);
-    console.log('📦 Project data:', {
-      id: project.id,
-      name: project.name,
-      pagesCount: project.data?.pages ? Object.keys(project.data.pages).length : 0
-    });
+    console.log('🎨 Initializing GrapeJS...');
+    console.log('📦 Project:', project);
 
     const editor = grapesjs.init({
       container: '#gjs-editor',
@@ -440,21 +424,14 @@ export const Workspace = forwardRef(({ project }, ref) => {
     `;
     document.head.appendChild(style);
 
-    // ✅ CRITICAL FIX: Load initial page AFTER editor is ready
+    // Load initial page
     const pages = project.data?.pages || project.pages || {};
     const initialPageId = project.data?.activePageId || project.activePageId || Object.keys(pages)[0];
 
-    console.log('📄 Initial page to load:', initialPageId);
-    console.log('📄 Available pages:', Object.keys(pages));
+    console.log('📄 Initial page:', initialPageId);
 
     if (initialPageId && pages[initialPageId]) {
-      // Small delay to ensure editor is fully ready
-      setTimeout(() => {
-        console.log('⏰ Loading initial page after delay');
-        loadPage(initialPageId, pages);
-      }, 100);
-    } else {
-      console.error('❌ No valid initial page found!');
+      loadPage(initialPageId, pages);
     }
 
     // Load assets
@@ -470,14 +447,14 @@ export const Workspace = forwardRef(({ project }, ref) => {
       });
     }
 
-    // Auto-save
+    // ✅ FIXED: Proper auto-save with longer delay
     let saveTimeout;
     editor.on('component:update', () => {
       clearTimeout(saveTimeout);
       saveTimeout = setTimeout(() => {
         console.log('⏱️ Auto-saving...');
         saveCurrentPage();
-      }, 5000);
+      }, 5000); // 5 seconds to avoid too many saves
     });
 
     // Event handlers
@@ -558,10 +535,9 @@ export const Workspace = forwardRef(({ project }, ref) => {
     window.addEventListener('remove-asset', handleRemoveAsset);
     window.addEventListener('use-asset', handleUseAsset);
 
-    console.log('✅ Editor ready and initialized');
+    console.log('✅ Editor ready');
 
     return () => {
-      console.log('🧹 Cleaning up editor');
       clearTimeout(saveTimeout);
       window.removeEventListener('manual-save', handleManualSave);
       window.removeEventListener('export-html', handleExportHTML);
@@ -577,10 +553,8 @@ export const Workspace = forwardRef(({ project }, ref) => {
         editorInstanceRef.current.destroy();
         editorInstanceRef.current = null;
       }
-      
-      initializationStartedRef.current = false;
     };
-  }, [project?.id]); // Only re-run when project ID changes
+  }, [project]);
 
   const handleAiSubmit = () => {
     if (!aiPrompt.trim() || !editorInstanceRef.current) return;

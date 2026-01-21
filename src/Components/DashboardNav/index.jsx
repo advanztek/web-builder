@@ -23,7 +23,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useLogout } from '../../Hooks/auth';
 
 const DashboardNav = () => {
-    const { mode, toggleTheme } = useThemeContext();
+    // const { mode, toggleTheme } = useThemeContext();
     const theme = useTheme();
     const creditBalance = 120;
 
@@ -69,20 +69,6 @@ const DashboardNav = () => {
                 <Typography onClick={() => navigate('/dashboard')} sx={{ cursor: 'pointer', fontWeight: 700, fontSize: '1.5rem' }}>WEB BUILDER</Typography>
 
                 <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                    <IconButton
-                        onClick={toggleTheme}
-                        sx={{
-                            color: theme.palette.text.secondary,
-                            transition: 'all 0.3s ease',
-                            '&:hover': {
-                                color: theme.palette.primary.main,
-                                bgcolor: theme.palette.action.hover,
-                                transform: 'rotate(180deg)',
-                            },
-                        }}
-                    >
-                        {mode === 'dark' ? <LightMode sx={{ fontSize: 24 }} /> : <DarkMode sx={{ fontSize: 24 }} />}
-                    </IconButton>
                     <Card sx={{ px: 1.5, py: 1, bgcolor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`, cursor: 'pointer' }} onClick={handleBuyCredits}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
                             <AccountBalanceWallet color="primary" />
