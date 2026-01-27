@@ -1,25 +1,33 @@
 import React from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, Outlet } from 'react-router-dom';
 import { Box } from '@mui/material';
+
 import Sidebar from '../../Components/SideBar';
 import DashboardNav from '../../Components/DashboardNav';
-import { Outlet } from 'react-router-dom';
 
-function DashboardLayout({ children }) {
+function DashboardLayout() {
   const location = useLocation();
 
-  const noLayoutRoutes = ["/register", "/sample", "/login"];
+  const noLayoutRoutes = ['/register', '/sample', '/login'];
   const hideLayout = noLayoutRoutes.includes(location.pathname);
-  const isDashboardRoute = location.pathname === "/" || location.pathname === "/dashboard";
-  const isEditorRoute = location.pathname === "/dashboard/editor" || location.pathname.startsWith("/dashboard/editor/");
+
+  const isEditorRoute = location.pathname.startsWith('/dashboard/editor');
 
   return (
     <>
       {!hideLayout && <DashboardNav />}
-      <Box sx={{ display: "flex", overflowX: 'hidden', width: '100%', minHeight: "100vh" }}>
-        {!hideLayout && (
+
+      <Box
+        sx={{
+          display: 'flex',
+          overflowX: 'hidden',
+          width: '100%',
+          minHeight: '100vh',
+        }}
+      >
+        {!hideLayout && !isEditorRoute && (
           <Box component="nav">
-            {/* <Sidebar /> */}
+            <Sidebar />
           </Box>
         )}
 
@@ -31,7 +39,7 @@ function DashboardLayout({ children }) {
             pl: isEditorRoute ? 0 : 7,
             bgcolor: isEditorRoute ? '#E5E5E5' : '#000',
             boxSizing: 'border-box',
-            transition: 'background-color 0.3s ease',
+            transition: 'all 0.3s ease',
           }}
         >
           <Outlet />

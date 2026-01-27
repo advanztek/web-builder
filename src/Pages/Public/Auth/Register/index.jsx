@@ -11,7 +11,7 @@ import {
     Stack,
 } from '@mui/material';
 import { Link } from 'react-router-dom';
-import { useRegister, useGoogleAuth } from '../../../../Hooks/auth';
+import { useRegister } from '../../../../Hooks/auth';
 
 export default function RegisterPage() {
     const [formData, setFormData] = useState({
@@ -21,7 +21,7 @@ export default function RegisterPage() {
     });
     const theme = useTheme();
     const { register, loading } = useRegister();
-    const { loginWithGoogle } = useGoogleAuth();
+    // const { loginWithGoogle } = useGoogleAuth();
 
     const handleChange = (e) => {
         const { name, value, checked, type } = e.target;
@@ -240,7 +240,7 @@ export default function RegisterPage() {
                         <Button
                             fullWidth
                             variant="outlined"
-                            onClick={loginWithGoogle}
+                            // onClick={loginWithGoogle}
                             startIcon={
                                 <svg
                                     width="20"

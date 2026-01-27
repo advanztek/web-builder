@@ -1,0 +1,1 @@
+export const BASE_URL_GOOGLE = "https://web-builder-backend-lawy.onrender.com/V1"

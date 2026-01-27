@@ -11,8 +11,6 @@ import {
     Container,
 } from '@mui/material';
 import {
-    LightMode,
-    DarkMode,
     Logout,
     ShoppingCart,
     AccountBalanceWallet,
@@ -57,7 +55,7 @@ const DashboardNav = () => {
                 right: 0,
                 height: '66px',
                 bgcolor: theme.palette.background.paper,
-                // borderBottom: `1px solid ${theme.palette.divider}`,
+                borderBottom: `1px solid ${theme.palette.divider}`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',

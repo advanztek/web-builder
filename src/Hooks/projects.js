@@ -1,105 +1,24 @@
-// hooks/useProjects.js - DIAGNOSTIC VERSION WITH FIXED URL HANDLING
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { showToast } from '../Utils/toast';
-import { BASE_SERVER_URL } from '../Config/url';
 import { useLoader } from '../Context/LoaderContext';
+import { apiCall } from '../Utils/ApiCall';
 
-const getAuthToken = () => {
-    return localStorage.getItem('token') ||
-        localStorage.getItem('authToken') ||
-        localStorage.getItem('accessToken');
-};
-
-const apiCall = async (endpoint, data, method = 'POST', contentType = 'application/json') => {
-    const token = getAuthToken();
-
-    // Build the full URL
-    const fullUrl = `${BASE_SERVER_URL}${endpoint}`;
-
-    console.log('🌐 API CALL DEBUG:');
-    console.log('BASE_SERVER_URL:', BASE_SERVER_URL);
-    console.log('Endpoint:', endpoint);
-    console.log('Full URL:', fullUrl);
-    console.log('Method:', method);
-
-    const options = {
-        method,
-        headers: {
-            'Content-Type': contentType,
-        },
-    };
-
-    if (token) {
-        options.headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    if (method !== 'GET' && method !== 'DELETE') {
-        if (contentType === 'application/json') {
-            options.body = JSON.stringify(data);
-        } else if (contentType === 'application/x-www-form-urlencoded') {
-            options.body = new URLSearchParams(data);
-        }
-    }
-
-    try {
-        console.log('📡 Sending request to:', fullUrl);
-        const response = await fetch(fullUrl, options);
-
-        console.log('📥 Response status:', response.status);
-        console.log('📥 Response ok:', response.ok);
-
-        if (response.status === 401) {
-            localStorage.clear();
-            throw new Error('Unauthorized! Please log in again.');
-        }
-
-        if (response.status === 404) {
-            throw new Error('Resource not found');
-        }
-
-        const responseContentType = response.headers.get('content-type');
-        console.log('📥 Response content-type:', responseContentType);
-
-        if (!responseContentType || !responseContentType.includes('application/json')) {
-            const text = await response.text();
-            console.error('❌ Non-JSON response:', text.substring(0, 500));
-            throw new Error(`Server error: Expected JSON but got ${response.status}`);
-        }
-
-        const result = await response.json();
-        console.log('📥 Response data:', result);
-
-        // Don't throw on !response.ok - just return the result
-        return result;
-
-    } catch (error) {
-        console.error(`❌ API Error [${method} ${endpoint}]:`, error);
-
-        // Special handling for network errors
-        if (error.message === 'Failed to fetch') {
-            console.error('🔴 NETWORK ERROR DETAILS:');
-            console.error('- Check if backend is running');
-            console.error('- Check if BASE_SERVER_URL is correct:', BASE_SERVER_URL);
-            console.error('- Check CORS settings on backend');
-            console.error('- Check your internet connection');
-
-            throw new Error(`Cannot connect to server at ${BASE_SERVER_URL}. Please check your connection and backend URL.`);
-        }
-
-        throw error;
-    }
-};
 
 const createDefaultPages = () => {
-    const homePageId = 'home';
+    const homePageId = 'page-1';
     return {
         [homePageId]: {
             id: homePageId,
             name: 'Home',
-            slug: '',
+            slug: 'home',
             isHome: true,
-            gjsData: null,
+            gjsData: {
+                html: '',
+                css: '',
+                components: [],
+                styles: []
+            },
             createdAt: Date.now(),
             updatedAt: Date.now()
         }
@@ -141,20 +60,19 @@ const normalizeProject = (backendProject) => {
     };
 };
 
-// ✅ CREATE PROJECT
+//CREATE PROJECT
 export const useCreateProject = () => {
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
+    const { showLoader, hideLoader } = useLoader();
 
     const createProject = async (input) => {
         setLoading(true);
+        showLoader('Creating your project...', 'orbit');
 
         try {
             let payload;
-
-            // ---------------------------
             // PROMPT MODE
-            // ---------------------------
             if (input.mode === "prompt") {
                 payload = {
                     mode: "prompt",
@@ -166,12 +84,11 @@ export const useCreateProject = () => {
                     files: input.files?.length ? input.files : undefined
                 };
 
-                console.log("📤 PROMPT PAYLOAD:", payload);
+                console.log("PROMPT PAYLOAD:", payload);
 
                 const res = await apiCall("/V1/user/project/create", payload);
-                console.log("📥 FULL RESPONSE:", res);
+                console.log("FULL RESPONSE:", res);
 
-                // Try multiple possible response structures
                 let created = null;
 
                 if (res?.result?.data) {
@@ -186,45 +103,62 @@ export const useCreateProject = () => {
                     created = res;
                 }
 
-                console.log("✅ EXTRACTED PROJECT:", created);
+                console.log("EXTRACTED PROJECT:", created);
 
                 if (!created) {
-                    console.error("❌ No valid project in response");
-                    return null;
+                    console.error("No valid project in response");
+                    throw new Error("Failed to create project - invalid response");
                 }
 
-                // If no id, use slug or generate one
                 if (!created.id) {
-                    console.warn("⚠️ Project has no ID, using slug or generating one");
+                    console.warn("Project has no ID, using slug or generating one");
                     created.id = created.slug || created.data?.slug || `project-${Date.now()}`;
                 }
 
-                const normalized = normalizeProject(created);
+                console.log("Raw project data being stored:", {
+                    id: created.id,
+                    pages: created.pages || created.data?.pages,
+                    activePageId: created.activePageId || created.data?.activePageId
+                });
 
-                // Store in localStorage for fallback
                 try {
                     const recentProjects = JSON.parse(localStorage.getItem('recent_projects') || '[]');
-                    recentProjects.unshift(normalized);
+                    recentProjects.unshift(created);
                     localStorage.setItem('recent_projects', JSON.stringify(recentProjects.slice(0, 10)));
                 } catch (e) {
                     console.warn('Could not store in localStorage:', e);
                 }
 
-                return normalized;
-            }
+                try {
+                    sessionStorage.setItem('pending_project', JSON.stringify(created));
+                    console.log('Stored raw backend response in sessionStorage');
+                } catch (e) {
+                    console.warn('Could not store in sessionStorage:', e);
+                }
 
-            // ---------------------------
+                const slug = created.slug || created.data?.slug || created.id;
+                console.log("Navigating to editor:", slug);
+
+                hideLoader();
+                showToast.success('Project created successfully!');
+
+                navigate(`/dashboard/editor/${slug}`, {
+                    state: { createdProject: created },
+                    replace: false
+                });
+
+                return created;
+            }
             // MANUAL MODE
-            // ---------------------------
             payload = {
                 mode: "manual",
                 data: input.data
             };
 
-            console.log("📤 MANUAL PAYLOAD:", payload);
+            console.log("MANUAL PAYLOAD:", payload);
 
             const res = await apiCall("/V1/user/project/create", payload);
-            console.log("📥 MANUAL RESPONSE:", res);
+            console.log("MANUAL RESPONSE:", res);
 
             let created = null;
 
@@ -238,29 +172,46 @@ export const useCreateProject = () => {
                 created = res;
             }
 
-            console.log("✅ CREATED PROJECT:", created);
+            console.log("CREATED PROJECT:", created);
 
             if (!created) {
                 throw new Error("Invalid response from server");
             }
 
-            // If no id, use slug or generate one
             if (!created.id) {
-                console.warn("⚠️ Project has no ID, using slug or generating one");
+                console.warn("Project has no ID, using slug or generating one");
                 created.id = created.slug || created.data?.slug || `project-${Date.now()}`;
             }
 
-            const normalized = normalizeProject(created);
+            console.log("Raw manual project data being stored:", {
+                id: created.id,
+                pages: created.pages || created.data?.pages,
+                activePageId: created.activePageId || created.data?.activePageId
+            });
 
-            const slug = normalized.slug || normalized.id;
-            console.log("➡️ Navigating to:", `/dashboard/editor/${slug}`);
-            navigate(`/dashboard/editor/${slug}`);
+            try {
+                sessionStorage.setItem('pending_project', JSON.stringify(created));
+                console.log('Stored raw backend response in sessionStorage');
+            } catch (e) {
+                console.warn('Could not store in sessionStorage:', e);
+            }
 
-            return normalized;
+            const slug = created.slug || created.data?.slug || created.id;
+            console.log("Navigating to:", `/dashboard/editor/${slug}`);
+
+            hideLoader();
+            showToast.success('Project created successfully!');
+
+            navigate(`/dashboard/editor/${slug}`, {
+                state: { createdProject: created },
+                replace: false
+            });
+
+            return created;
 
         } catch (err) {
-            console.error("❌ CREATE PROJECT ERROR:", err);
-            console.error("ERROR STACK:", err.stack);
+            console.error("CREATE PROJECT ERROR:", err);
+            hideLoader();
 
             if (err.message.includes("Unauthorized")) {
                 showToast.error("Session expired. Please log in again.");
@@ -281,16 +232,16 @@ export const useCreateProject = () => {
     return { createProject, loading };
 };
 
+//GET ALL PROJECTS
 export const useGetProjects = () => {
     const [loading, setLoading] = useState(false);
     const [projects, setProjects] = useState([]);
     const { showLoader, hideLoader } = useLoader();
+    const navigate = useNavigate();
 
-    const getProjects = async (showGlobalLoader = false) => {
+    const getProjects = async () => {
         setLoading(true);
-        if (showGlobalLoader) {
-            showLoader('Loading projects...', 'dots');
-        }
+        showLoader('Loading projects...', 'dots');
 
         try {
             const res = await apiCall("/V1/user/projects", null, 'GET');
@@ -309,13 +260,19 @@ export const useGetProjects = () => {
 
             const normalized = projectsData.map(normalizeProject);
             setProjects(normalized);
+
+            hideLoader();
             return normalized;
 
         } catch (err) {
             console.error("GET PROJECTS ERROR:", err);
+            hideLoader();
 
             if (err.message?.includes('Unauthorized')) {
-                showToast.error('Session expired.');
+                showToast.error('Session expired. Please log in again.');
+                navigate('/login');
+            } else {
+                showToast.error(err.message || 'Failed to load projects');
             }
 
             setProjects([]);
@@ -323,22 +280,20 @@ export const useGetProjects = () => {
 
         } finally {
             setLoading(false);
-            if (showGlobalLoader) {
-                hideLoader();
-            }
         }
     };
 
     return { getProjects, projects, loading };
 };
 
-// ✅ GET PROJECT
+//GET SINGLE PROJECT
 export const useGetProject = () => {
     const [loading, setLoading] = useState(false);
     const [project, setProject] = useState(null);
     const { showLoader, hideLoader } = useLoader();
+    const navigate = useNavigate();
 
-    const getProject = async (projectId, showGlobalLoader = false) => {
+    const getProject = async (projectId, showGlobalLoader = true) => {
         if (!projectId) {
             console.warn('No projectId provided to getProject');
             return null;
@@ -350,7 +305,7 @@ export const useGetProject = () => {
         }
 
         try {
-            console.log(`🔍 Looking for project: ${projectId}`);
+            console.log(`Looking for project: ${projectId}`);
 
             // Strategy 1: Try direct fetch
             try {
@@ -358,17 +313,18 @@ export const useGetProject = () => {
 
                 if (res?.success && (res.result || res.data)) {
                     const projectData = res.result || res.data;
-                    console.log('✅ Found via direct fetch');
+                    console.log('Found via direct fetch');
                     const normalized = normalizeProject(projectData);
                     setProject(normalized);
+                    hideLoader();
                     return normalized;
                 }
             } catch (directError) {
-                console.warn(`⚠️ Direct fetch failed:`, directError.message);
+                console.warn(`Direct fetch failed:`, directError.message);
             }
 
-            // Strategy 2: Get all projects
-            console.log('🔍 Trying to find in all projects...');
+            // Strategy 2: Get all projects and search
+            console.log('Searching in all projects...');
             const allProjectsRes = await apiCall('/V1/user/projects', null, 'GET');
 
             if (allProjectsRes?.success) {
@@ -383,25 +339,27 @@ export const useGetProject = () => {
                 });
 
                 if (found) {
-                    console.log('✅ Found in all projects list');
+                    console.log('Found in all projects list');
                     const normalized = normalizeProject(found);
                     setProject(normalized);
+                    hideLoader();
                     return normalized;
                 }
             }
 
             // Strategy 3: Check sessionStorage
-            console.log('🔍 Checking sessionStorage...');
+            console.log('Checking sessionStorage...');
             const pendingProject = sessionStorage.getItem('pending_project');
             if (pendingProject) {
                 try {
                     const parsed = JSON.parse(pendingProject);
                     if (String(parsed.id) === String(projectId) ||
                         String(parsed.slug) === String(projectId)) {
-                        console.log('✅ Found in sessionStorage');
+                        console.log('Found in sessionStorage');
                         const normalized = normalizeProject(parsed);
                         setProject(normalized);
                         sessionStorage.removeItem('pending_project');
+                        hideLoader();
                         return normalized;
                     }
                 } catch (e) {
@@ -410,7 +368,7 @@ export const useGetProject = () => {
             }
 
             // Strategy 4: Check localStorage
-            console.log('🔍 Checking localStorage...');
+            console.log('Checking localStorage...');
             try {
                 const recentProjects = JSON.parse(localStorage.getItem('recent_projects') || '[]');
                 const found = recentProjects.find(p =>
@@ -419,23 +377,26 @@ export const useGetProject = () => {
                 );
 
                 if (found) {
-                    console.log('✅ Found in localStorage');
+                    console.log('Found in localStorage');
                     const normalized = normalizeProject(found);
                     setProject(normalized);
+                    hideLoader();
                     return normalized;
                 }
             } catch (e) {
                 console.warn('Failed to check localStorage:', e);
             }
 
-            console.error('❌ Project not found anywhere');
+            console.error('Project not found anywhere');
             throw new Error('Project not found');
 
         } catch (err) {
             console.error("GET PROJECT ERROR:", err);
+            hideLoader();
 
             if (err.message?.includes('Unauthorized')) {
                 showToast.error('Session expired. Please log in again.');
+                navigate('/login');
             } else if (!err.message?.includes('not found')) {
                 showToast.error(err.message || 'Failed to load project');
             }
@@ -445,19 +406,17 @@ export const useGetProject = () => {
 
         } finally {
             setLoading(false);
-            if (showGlobalLoader) {
-                hideLoader();
-            }
         }
     };
 
     return { getProject, project, loading };
 };
 
-// ✅ UPDATE PROJECT
+//UPDATE PROJECT
 export const useUpdateProject = () => {
     const [loading, setLoading] = useState(false);
     const { showLoader, hideLoader } = useLoader();
+    const navigate = useNavigate();
 
     const updateProject = async (projectId, updateData, showGlobalLoader = false) => {
         setLoading(true);
@@ -466,6 +425,11 @@ export const useUpdateProject = () => {
         }
 
         try {
+            console.log('UPDATE REQUEST:', {
+                projectId,
+                updateKeys: Object.keys(updateData)
+            });
+
             const payload = {
                 mode: 'manual',
                 data: updateData
@@ -478,78 +442,170 @@ export const useUpdateProject = () => {
             }
 
             const result = res.result || res.data;
+
+            if (showGlobalLoader) {
+                hideLoader();
+                showToast.success('Changes saved successfully!');
+            }
+
             return result ? normalizeProject(result) : null;
 
         } catch (err) {
-            console.error("❌ UPDATE ERROR:", err);
+            console.error("UPDATE ERROR:", err);
 
-            if (!err.message.includes('Validation')) {
-                showToast.error(err.message || "Failed to save");
+            if (showGlobalLoader) {
+                hideLoader();
+            }
+
+            if (err.message?.includes('Unauthorized')) {
+                showToast.error('Session expired. Please log in again.');
+                navigate('/login');
+            } else if (!err.message?.includes('Validation')) {
+                if (showGlobalLoader) {
+                    showToast.error(err.message || "Failed to save");
+                }
+            } else {
+                console.warn('Validation error during save');
             }
 
             return null;
 
         } finally {
             setLoading(false);
-            if (showGlobalLoader) {
-                hideLoader();
-            }
         }
     };
 
     return { updateProject, loading };
 };
 
-// ✅ AI UPDATE PROJECT
-export const useAIUpdateProject = () => {
+// AI UPDATE PROJECT
+// export const useAIUpdateProject = () => {
+//     const [loading, setLoading] = useState(false);
+//     const { showLoader, hideLoader } = useLoader();
+//     const navigate = useNavigate();
+
+//     const aiUpdateProject = async (projectId, updateData) => {
+//         setLoading(true);
+//         showLoader('AI is updating your page...', 'orbit');
+
+//         try {
+//             const payload = {
+//                 mode: 'prompt',
+//                 pageId: updateData.pageId,
+//                 updates: {
+//                     html: updateData.html,
+//                     css: updateData.css,
+//                     components: updateData.components,
+//                     styles: updateData.styles
+//                 }
+//             };
+
+//             const res = await apiCall(`/V1/project/ai-update-page/${projectId}`, payload, 'PATCH');
+
+//             if (!res?.success) {
+//                 throw new Error(res?.message || "AI update failed");
+//             }
+
+//             const result = res.result || res.data;
+
+//             hideLoader();
+//             showToast.success('AI update applied successfully!');
+
+//             return result ? normalizeProject(result) : null;
+
+//         } catch (err) {
+//             console.error("❌ AI UPDATE ERROR:", err);
+//             hideLoader();
+
+//             if (err.message?.includes('Unauthorized')) {
+//                 showToast.error('Session expired. Please log in again.');
+//                 navigate('/login');
+//             } else if (!err.message?.includes('Validation')) {
+//                 showToast.error(err.message || "Failed to apply AI updates");
+//             }
+
+//             return null;
+
+//         } finally {
+//             setLoading(false);
+//         }
+//     };
+
+//     return { aiUpdateProject, loading };
+// };
+
+// ✅ UPDATE PAGE WITH AI
+export const useUpdatePageWithAI = () => {
     const [loading, setLoading] = useState(false);
+    const navigate = useNavigate();
     const { showLoader, hideLoader } = useLoader();
 
-    const aiUpdateProject = async (projectId, updateData, showGlobalLoader = false) => {
+    const updatePageWithAI = async (input) => {
         setLoading(true);
-        if (showGlobalLoader) {
-            showLoader('AI is updating your page...', 'orbit');
-        }
+        showLoader('Updating your page with AI...', 'orbit');
 
         try {
+            // ✅ Format similar to create project (prompt mode)
             const payload = {
-                mode: 'prompt',
-                pageId: updateData.pageId,
-                updates: {
-                    html: updateData.html,
-                    css: updateData.css,
-                    components: updateData.components,
-                    styles: updateData.styles
-                }
+                projectId: input.projectId,
+                pageId: input.pageId,
+                prompt: input.prompt,
+                files: input.files?.length ? input.files : undefined
             };
 
-            const res = await apiCall(`/V1/project/ai-update-page/${projectId}`, payload, 'PATCH');
+            console.log("AI UPDATE PAGE PAYLOAD:", payload);
 
-            if (!res?.success) {
-                throw new Error(res?.message || "AI update failed");
+            const res = await apiCall("/V1/user/project/ai-update-page", payload);
+            console.log("AI UPDATE PAGE RESPONSE:", res);
+
+            let updatedPage = null;
+
+            // ✅ Parse response similar to create project
+            if (res?.result?.data) {
+                updatedPage = res.result.data;
+            } else if (res?.data) {
+                updatedPage = res.data;
+            } else if (res?.result) {
+                updatedPage = res.result;
+            } else if (res?.project) {
+                updatedPage = res.project;
+            } else if (res?.page) {
+                updatedPage = res.page;
+            } else if (res?.id) {
+                updatedPage = res;
             }
 
-            const result = res.result || res.data;
-            return result ? normalizeProject(result) : null;
+            console.log("EXTRACTED UPDATED PAGE:", updatedPage);
+
+            if (!updatedPage) {
+                console.error("No valid page in response");
+                throw new Error("Failed to update page - invalid response");
+            }
+
+            hideLoader();
+            showToast.success('Page updated successfully!');
+
+            return updatedPage;
 
         } catch (err) {
-            console.error("❌ AI UPDATE ERROR:", err);
+            console.error("AI UPDATE PAGE ERROR:", err);
+            hideLoader();
 
-            if (!err.message.includes('Validation')) {
-                showToast.error(err.message || "Failed to save AI updates");
+            if (err.message?.includes("Unauthorized")) {
+                showToast.error("Session expired. Please log in again.");
+                navigate("/login");
+                return null;
             }
 
+            showToast.error(err.message || "Failed to update page");
             return null;
 
         } finally {
             setLoading(false);
-            if (showGlobalLoader) {
-                hideLoader();
-            }
         }
     };
 
-    return { aiUpdateProject, loading };
+    return { updatePageWithAI, loading };
 };
 
 // ✅ DELETE PROJECT
@@ -569,18 +625,26 @@ export const useDeleteProject = () => {
                 throw new Error(res?.message || "Deletion failed");
             }
 
-            showToast.success("Project deleted!");
+            hideLoader();
+            showToast.success("Project deleted successfully!");
             navigate('/dashboard');
             return true;
 
         } catch (err) {
-            console.error("DELETE ERROR:", err);
-            showToast.error(err.message || "Failed to delete");
+            console.error("❌ DELETE ERROR:", err);
+            hideLoader();
+
+            if (err.message?.includes('Unauthorized')) {
+                showToast.error('Session expired. Please log in again.');
+                navigate('/login');
+            } else {
+                showToast.error(err.message || "Failed to delete project");
+            }
+
             return false;
 
         } finally {
             setLoading(false);
-            hideLoader();
         }
     };
 
@@ -592,20 +656,22 @@ export const useGetProjectBySlug = () => {
     const [loading, setLoading] = useState(false);
     const [project, setProject] = useState(null);
     const { showLoader, hideLoader } = useLoader();
+    const navigate = useNavigate();
 
-    const getProjectBySlug = async (slug, showGlobalLoader = true) => {
-        if (!slug) return null;
+    const getProjectBySlug = async (slug) => {
+        if (!slug) {
+            console.warn('No slug provided');
+            return null;
+        }
 
         setLoading(true);
-        if (showGlobalLoader) {
-            showLoader('Loading project...', 'spinner');
-        }
+        showLoader('Loading project...', 'spinner');
 
         try {
             const res = await apiCall('/V1/user/projects', null, 'GET');
 
             if (!res?.success) {
-                throw new Error(res?.message || "Failed to fetch");
+                throw new Error(res?.message || "Failed to fetch projects");
             }
 
             const projectsData = res.result || res.data || [];
@@ -614,23 +680,32 @@ export const useGetProjectBySlug = () => {
                 return projectSlug === String(slug) || String(p.id) === String(slug);
             });
 
-            if (!found) throw new Error('Project not found');
+            if (!found) {
+                throw new Error('Project not found');
+            }
 
             const normalized = normalizeProject(found);
             setProject(normalized);
+
+            hideLoader();
             return normalized;
 
         } catch (err) {
-            console.error("GET BY SLUG ERROR:", err);
-            showToast.error(err.message || "Failed to fetch");
+            console.error("❌ GET BY SLUG ERROR:", err);
+            hideLoader();
+
+            if (err.message?.includes('Unauthorized')) {
+                showToast.error('Session expired. Please log in again.');
+                navigate('/login');
+            } else {
+                showToast.error(err.message || "Failed to load project");
+            }
+
             setProject(null);
             return null;
 
         } finally {
             setLoading(false);
-            if (showGlobalLoader) {
-                hideLoader();
-            }
         }
     };
 

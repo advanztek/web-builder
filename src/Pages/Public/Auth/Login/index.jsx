@@ -1,3 +1,4 @@
+// Pages/Auth/Login/index.jsx
 import React, { useState } from 'react';
 import {
     Box,
@@ -9,7 +10,9 @@ import {
     CircularProgress,
 } from '@mui/material';
 import { Link, useNavigate } from 'react-router-dom';
-import { useLogin, useGoogleAuth } from '../../../../Hooks/auth';
+import { useLogin } from '../../../../Hooks/auth';
+import { useGoogleAuthLogin } from '../../../../Hooks/googleAuth';
+import { signInWithGooglePopup } from '../../../../Utils/googleAuth';
 
 export default function LoginPage() {
     const [formData, setFormData] = useState({
@@ -19,7 +22,8 @@ export default function LoginPage() {
     const theme = useTheme();
     const navigate = useNavigate();
     const { login, loading } = useLogin();
-    const { loginWithGoogle, loading: googleLoading } = useGoogleAuth();
+    const googleLogin = useGoogleAuthLogin();
+    const [googleLoading, setGoogleLoading] = useState(false);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -31,37 +35,40 @@ export default function LoginPage() {
 
     const handleLogin = async (e) => {
         e.preventDefault();
-        
+
         try {
             const result = await login(formData);
-            
-            // Only navigate if login was successful and returned a result
             if (result) {
-                // Small delay to ensure state is updated
                 setTimeout(() => {
                     navigate('/dashboard', { replace: true });
                 }, 100);
             }
         } catch (error) {
             console.error('Login error:', error);
-            // Error handling is done in the hook
         }
     };
 
-    const handleGoogleLogin = async () => {
+    const handleGoogleSignIn = async () => {
         try {
-            const result = await loginWithGoogle();
+            setGoogleLoading(true);
+            console.log("🔵 Starting Google Sign-In...");
             
-            // Only navigate if Google login was successful
-            if (result) {
-                // Small delay to ensure state is updated
-                setTimeout(() => {
-                    navigate('/dashboard', { replace: true });
-                }, 100);
+            // Get Google access token
+            const googleAccessToken = await signInWithGooglePopup();
+            console.log("✅ Google token received, sending to backend...");
+
+            // Send to backend
+            const success = await googleLogin(googleAccessToken);
+            
+            if (success) {
+                console.log("✅ Google login successful");
+            } else {
+                console.log("❌ Google login failed");
             }
         } catch (error) {
-            console.error('Google login error:', error);
-            // Error handling is done in the hook
+            console.error("❌ Google sign-in error:", error);
+        } finally {
+            setGoogleLoading(false);
         }
     };
 
@@ -273,11 +280,11 @@ export default function LoginPage() {
                             </Link>
                         </Typography>
 
-                        <Box sx={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: 2, 
-                            my: 3 
+                        <Box sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 2,
+                            my: 3
                         }}>
                             <Box sx={{ flex: 1, height: '1px', bgcolor: theme.palette.divider }} />
                             <Typography variant="body2" color="text.secondary">
@@ -290,7 +297,7 @@ export default function LoginPage() {
                             <Button
                                 fullWidth
                                 variant="outlined"
-                                onClick={handleGoogleLogin}
+                                onClick={handleGoogleSignIn}
                                 disabled={isLoading}
                                 startIcon={
                                     googleLoading ? (

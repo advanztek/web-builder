@@ -17,6 +17,7 @@
     "@mui/material": "^7.3.2",
     "@reduxjs/toolkit": "^2.9.0",
     "aos": "^2.3.4",
+    "axios": "^1.13.3",
     "grapesjs": "^0.22.13",
     "grapesjs-blocks-basic": "^1.0.2",
     "grapesjs-preset-webpage": "^1.0.3",

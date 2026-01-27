@@ -58,32 +58,39 @@ export const LayoutPanel = ({ project }) => {
   // Track current active page locally
   const [currentPageId, setCurrentPageId] = useState(null);
 
-  // Load gallery files and active page from project data
+  // ✅ CRITICAL FIX: Load gallery files and active page from project data
   useEffect(() => {
     if (project) {
       if (project.data?.gallery) {
         setUploadedFiles(project.data.gallery);
       }
       
-      // Set initial active page
+      // ✅ Get ACTUAL page IDs from project
+      const pages = project.data?.pages || project.pages || {};
+      const pageIds = Object.keys(pages);
+      
+      // Set initial active page using ACTUAL page ID
       const activeId = project.data?.activePageId || project.activePageId;
-      if (activeId) {
-        setCurrentPageId(activeId);
-      } else {
-        // Set first page as active if no active page
-        const pages = project.data?.pages || project.pages || {};
-        const firstPageId = Object.keys(pages)[0];
-        if (firstPageId) {
-          setCurrentPageId(firstPageId);
-        }
-      }
       
       console.log('📦 LayoutPanel updated with project:', {
         projectId: project.id,
-        pagesCount: project.data?.pages ? Object.keys(project.data.pages).length : 0
+        pagesCount: pageIds.length,
+        pageIds: pageIds,
+        activePageId: activeId
       });
+
+      if (activeId && pages[activeId]) {
+        console.log('✅ Setting current page to:', activeId);
+        setCurrentPageId(activeId);
+      } else if (pageIds.length > 0) {
+        // Find home page or use first page
+        const homePage = pageIds.find(id => pages[id].isHome);
+        const firstPage = homePage || pageIds[0];
+        console.log('✅ Setting current page to first/home page:', firstPage);
+        setCurrentPageId(firstPage);
+      }
     }
-  }, [project]);
+  }, [project?.id]); // Only re-run when project ID changes
 
   const handleAddPage = async () => {
     if (!pageName.trim()) {
@@ -109,7 +116,12 @@ export const LayoutPanel = ({ project }) => {
         name: pageName.trim(),
         slug: slug,
         isHome: false,
-        gjsData: null,
+        gjsData: {
+          html: '',
+          css: '',
+          components: [],
+          styles: []
+        },
         createdAt: Date.now(),
         updatedAt: Date.now()
       };
@@ -123,13 +135,12 @@ export const LayoutPanel = ({ project }) => {
         [newPageId]: newPage
       };
 
-      // ✅ FIXED: Pass only the pages update
+      // ✅ FIXED: Use correct updateProject signature (projectId, updateData)
       const updateData = {
         pages: updatedPages
       };
 
-      // ✅ Pass project as third parameter
-      const result = await updateProject(projectId, updateData, project, 'manual');
+      const result = await updateProject(projectId, updateData);
       
       if (result) {
         console.log('✅ Page added successfully');
@@ -149,7 +160,7 @@ export const LayoutPanel = ({ project }) => {
   const handlePageClick = (pageId) => {
     if (!project?.id) return;
 
-    console.log('📄 Switching to page:', pageId);
+    console.log('🔄 Switching to page:', pageId);
     
     // Update local state immediately for UI feedback
     setCurrentPageId(pageId);
@@ -157,8 +168,10 @@ export const LayoutPanel = ({ project }) => {
     // Update Redux
     dispatch(setActivePage({ projectId: project.id, pageId }));
     
-    // Trigger GrapeJS to load this page
-    const event = new CustomEvent('change-page', { detail: { pageId, project } });
+    // ✅ CRITICAL: Pass the actual pageId to Workspace
+    const event = new CustomEvent('change-page', { 
+      detail: { pageId } 
+    });
     window.dispatchEvent(event);
   };
 
@@ -209,13 +222,12 @@ export const LayoutPanel = ({ project }) => {
         }
       };
 
-      // ✅ FIXED: Pass only pages update
+      // ✅ FIXED: Use correct signature
       const updateData = {
         pages: updatedPages
       };
 
-      // ✅ Pass project as third parameter for complete data
-      const result = await updateProject(projectId, updateData, project, 'manual');
+      const result = await updateProject(projectId, updateData);
 
       if (result) {
         console.log('✅ Page renamed successfully');
@@ -251,13 +263,12 @@ export const LayoutPanel = ({ project }) => {
         const updatedPages = { ...pages };
         delete updatedPages[menuPageId];
 
-        // ✅ FIXED: Pass only pages update
+        // ✅ FIXED: Use correct signature
         const updateData = {
           pages: updatedPages
         };
 
-        // ✅ Pass project as third parameter
-        const result = await updateProject(projectId, updateData, project, 'manual');
+        const result = await updateProject(projectId, updateData);
         
         if (result) {
           console.log('✅ Page deleted successfully');
@@ -338,13 +349,12 @@ export const LayoutPanel = ({ project }) => {
       const updatedFiles = [...uploadedFiles, ...newFiles];
       setUploadedFiles(updatedFiles);
 
-      // ✅ FIXED: Pass only gallery update
+      // ✅ FIXED: Use correct signature
       const updateData = {
         gallery: updatedFiles
       };
 
-      // ✅ Pass project as third parameter
-      await updateProject(project.id, updateData, project, 'manual');
+      await updateProject(project.id, updateData);
       showToast.success(`${newFiles.length} file(s) uploaded!`);
       
       // Trigger project refresh
@@ -368,13 +378,12 @@ export const LayoutPanel = ({ project }) => {
     const updatedFiles = uploadedFiles.filter(f => f.id !== fileId);
     setUploadedFiles(updatedFiles);
 
-    // ✅ FIXED: Pass only gallery update
+    // ✅ FIXED: Use correct signature
     const updateData = {
       gallery: updatedFiles
     };
 
-    // ✅ Pass project as third parameter
-    await updateProject(project.id, updateData, project, 'manual');
+    await updateProject(project.id, updateData);
     showToast.success('File deleted');
     
     // Trigger project refresh
@@ -391,12 +400,9 @@ export const LayoutPanel = ({ project }) => {
     window.dispatchEvent(event);
   };
 
-  // Get pages array
-  const pages = project?.data?.pages 
-    ? Object.values(project.data.pages) 
-    : project?.pages 
-    ? Object.values(project.pages) 
-    : [];
+  // ✅ Get pages array using actual page IDs
+  const pages = project?.data?.pages || project?.pages || {};
+  const pagesArray = Object.values(pages);
 
   return (
     <Box
@@ -499,7 +505,7 @@ export const LayoutPanel = ({ project }) => {
                   letterSpacing: '0.5px'
                 }}
               >
-                Pages ({pages.length})
+                Pages ({pagesArray.length})
               </Typography>
               <Tooltip title="Add Page">
                 <IconButton
@@ -514,7 +520,7 @@ export const LayoutPanel = ({ project }) => {
             </Box>
             
             <List sx={{ py: 0, flex: 1, overflowY: 'auto' }}>
-              {pages.map((page) => (
+              {pagesArray.map((page) => (
                 <ListItem
                   key={page.id}
                   disablePadding
@@ -574,7 +580,7 @@ export const LayoutPanel = ({ project }) => {
       <Box sx={{ 
         flex: 1, 
         display: tabValue === 2 ? 'flex' : 'none', 
-        flexDirection: 'column' 
+        flexDirection: 'column'
       }}>
         {project ? (
           <>

@@ -1,31 +1,10 @@
-import { useState, useRef, useCallback, useEffect  } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { showToast } from '../Utils/toast';
-import { BASE_SERVER_URL } from '../Config/url';
 import { useDispatch } from 'react-redux';
 import { useLoader } from '../Context/LoaderContext';
-// Utility function for API calls
-const apiCall = async (endpoint, data, method = 'POST', contentType = 'application/json') => {
-  const options = {
-    method,
-    headers: { 'Content-Type': contentType },
-  };
-
-  if (contentType === 'application/json') {
-    options.body = JSON.stringify(data);
-  } else if (contentType === 'application/x-www-form-urlencoded') {
-    options.body = new URLSearchParams(data);
-  }
-
-  const response = await fetch(`${BASE_SERVER_URL}${endpoint}`, options);
-  const result = await response.json();
-
-  if (!response.ok || !result.success) {
-    throw new Error(result.message || 'Request failed');
-  }
-
-  return result;
-};
+import { authApiCall } from '../Utils/authApiCall';
+import { useAuth } from '../Context/AuthContext';
 
 export const useRegister = () => {
   const [loading, setLoading] = useState(false);
@@ -35,14 +14,13 @@ export const useRegister = () => {
     setLoading(true);
 
     try {
-      const res = await apiCall("/V1/auth/register", data);
+      const res = await authApiCall("/V1/auth/register", data);
 
       if (!res?.success) {
         throw new Error(res?.message || "Registration failed");
       }
 
-      // ✅ Request OTP explicitly
-      await apiCall("/V1/auth/req-verify-otp", {
+      await authApiCall("/V1/auth/req-verify-otp", {
         email: data.email,
       });
 
@@ -87,18 +65,37 @@ export const useRegister = () => {
 export const useLogin = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { updateUser } = useAuth();
 
   const login = async (data) => {
     setLoading(true);
     try {
-      const result = await apiCall('/V1/auth/login', data);
+      const result = await authApiCall('/V1/auth/login', data);
       console.log('LOGIN RESPONSE:', result);
 
+      const roleMap = {
+        1: 'super_admin',  
+        2: 'user',
+      };
+
+      const user = {
+        ...result.result.user,
+        role: roleMap[result.result.user.role] || 'user'
+      };
+
       localStorage.setItem('token', result.result.token);
-      localStorage.setItem('user', JSON.stringify(result.result.user));
+      localStorage.setItem('user', JSON.stringify(user)); 
+
+      updateUser(user); 
 
       showToast.success(result.message || 'Login successful!');
-      navigate('/dashboard');
+
+      const userRole = user.role;
+      if (userRole === 'super_admin' || userRole === 'admin') {
+        navigate('/dashboard'); 
+      } else {
+        navigate('/dashboard');
+      }
 
       return result.result;
     } catch (error) {
@@ -113,60 +110,6 @@ export const useLogin = () => {
 };
 
 
-export const useGoogleAuth = () => {
-  const navigate = useNavigate();
-  const dispatch = useDispatch();
-  const { showLoader, hideLoader } = useLoader();
-
-  return async (googleAccessToken) => {
-    try {
-      showLoader();
-      if (!googleAccessToken) {
-        throw new Error("Google access token is required");
-      }
-
-     g
-
-      const result = response.data;
-      console.log(response);
-
-      if (result?.code && result.code !== 0) {
-        showToast.error(result.message || "Google authentication failed");
-        return false;
-      }
-
-      console.log("Google login result:", result);
-
-      if (result?.code === 0) {
-        showToast.success(result.message || "Signed in with Google");
-        dispatch(setUser(result.result));
-        const user = result.result.user;
-        if (user?.role == 1 || user?.role == 2) {
-          return navigate("/dashboard");
-        } else {
-          return navigate("/dashboard/user/overview");
-        }
-      }
-
-      showToast.success();
-      return true;
-    } catch (error) {
-      console.error("Google Auth Error:", error);
-
-      const message =
-        error?.response?.data?.message ||
-        error.message ||
-        "Google authentication failed";
-
-      showToast.error(message);
-      return false;
-    } finally {
-      hideLoader();
-    }
-  };
-};
-
-
 export const useVerifyEmail = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -175,7 +118,7 @@ export const useVerifyEmail = () => {
     setLoading(true);
 
     try {
-      const res = await apiCall(
+      const res = await authApiCall(
         "/V1/auth/verify-email",
         data,
         "POST",
@@ -216,7 +159,7 @@ export const useRequestVerifyOTP = () => {
   const requestOTP = async (email) => {
     setLoading(true);
     try {
-      const result = await apiCall('/V1/auth/req-verify-otp', { email });
+      const result = await authApiCall('/V1/auth/req-verify-otp', { email });
       showToast.success(result.message || 'OTP sent to your email!');
       return result;
     } catch (error) {
@@ -237,7 +180,7 @@ export const useForgotPassword = () => {
   const forgotPassword = async (email) => {
     setLoading(true);
     try {
-      const result = await apiCall('/V1/auth/forgot-password', { email });
+      const result = await authApiCall('/V1/auth/forgot-password', { email });
       showToast.success(result.message || 'Password reset link sent to your email!');
       navigate('/forgot-password-confirmation');
       return result;
@@ -259,7 +202,7 @@ export const useResetPassword = () => {
   const resetPassword = async (data) => {
     setLoading(true);
     try {
-      const result = await apiCall('/V1/auth/reset-password', data);
+      const result = await authApiCall('/V1/auth/reset-password', data);
       showToast.success(result.message || 'Password reset successful!');
       navigate('/login');
       return result.result;
