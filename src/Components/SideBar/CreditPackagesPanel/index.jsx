@@ -16,10 +16,10 @@ import {
   CircularProgress,
 } from '@mui/material';
 import { Add, Edit, Delete, Star } from '@mui/icons-material';
-import { useGetCreditPackages, useCreateCreditPackage, useDeleteCreditPackage } from '../hooks/useAdmin';
+import { useCreateCreditPackage, useDeleteCreditPackage, useGetPackages } from '../../../Hooks/credits';
 
 export const CreditPackagesPanel = () => {
-  const { getCreditPackages, packages, loading } = useGetCreditPackages();
+  const { getPackages, packages, loading } = useGetPackages();
   const { createPackage, loading: creating } = useCreateCreditPackage();
   const { deletePackage } = useDeleteCreditPackage();
 
@@ -33,7 +33,7 @@ export const CreditPackagesPanel = () => {
   });
 
   useEffect(() => {
-    getCreditPackages();
+    getPackages();
   }, []);
 
   const handleOpenDialog = () => {
@@ -72,7 +72,7 @@ export const CreditPackagesPanel = () => {
     const result = await createPackage(packageData);
     if (result) {
       handleCloseDialog();
-      getCreditPackages();
+      getPackages();
     }
   };
 
@@ -80,7 +80,7 @@ export const CreditPackagesPanel = () => {
     if (window.confirm('Are you sure you want to delete this package?')) {
       const result = await deletePackage(packageId);
       if (result) {
-        getCreditPackages();
+        getPackages();
       }
     }
   };

@@ -18,7 +18,7 @@ import {
     Tooltip,
 } from '@mui/material';
 import { Search, Visibility, Edit } from '@mui/icons-material';
-// import { useGetAllUsers } from '../hooks/useAdmin';
+import { useGetAllUsers } from '../../../Hooks/users';
 
 export const UsersPanel = () => {
     const { getAllUsers, users, loading } = useGetAllUsers();

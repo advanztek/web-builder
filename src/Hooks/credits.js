@@ -69,3 +69,69 @@ export const useGetPackages = () => {
 
     return { getPackages, packages, loading };
 };
+
+// Create credit package
+export const useCreateCreditPackage = () => {
+    const [loading, setLoading] = useState(false);
+
+    const createPackage = async (packageData) => {
+        setLoading(true);
+        try {
+            const result = await apiCall('/V1/admin/package/create', 'POST', packageData);
+            showToast.success('Credit package created successfully!');
+            return result;
+        } catch (error) {
+            showToast.error(error.message || 'Failed to create credit package');
+            console.error('Error creating package:', error);
+            return null;
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return { createPackage, loading };
+};
+
+// Update credit package
+export const useUpdateCreditPackage = () => {
+    const [loading, setLoading] = useState(false);
+
+    const updatePackage = async (packageId, packageData) => {
+        setLoading(true);
+        try {
+            const result = await apiCall(`/V1/admin/package/update/${packageId}`, 'PUT', packageData);
+            showToast.success('Credit package updated successfully!');
+            return result;
+        } catch (error) {
+            showToast.error(error.message || 'Failed to update credit package');
+            console.error('Error updating package:', error);
+            return null;
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return { updatePackage, loading };
+};
+
+// Delete credit package
+export const useDeleteCreditPackage = () => {
+    const [loading, setLoading] = useState(false);
+
+    const deletePackage = async (packageId) => {
+        setLoading(true);
+        try {
+            const result = await apiCall(`/V1/admin/package/delete/${packageId}`, 'DELETE');
+            showToast.success('Credit package deleted successfully!');
+            return result;
+        } catch (error) {
+            showToast.error(error.message || 'Failed to delete credit package');
+            console.error('Error deleting package:', error);
+            return null;
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return { deletePackage, loading };
+};
