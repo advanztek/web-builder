@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useLocation, Outlet } from 'react-router-dom';
 import { Box } from '@mui/material';
 

@@ -1,12 +1,12 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { AppBar, Toolbar, Typography, Tooltip, IconButton, Chip } from '@mui/material';
 import { ArrowBack, AccountBalanceWallet } from '@mui/icons-material';
 import DeviceModeSelector from '../DeviceModeSelector';
 import ToolbarActions from '../ToolbarActions';
+import { useGetCreditBalance } from '../../../../Hooks/credits';
 
 const EditorToolbar = ({
     project,
-    creditBalance,
     deviceMode,
     creatingProject,
     onBack,
@@ -17,6 +17,16 @@ const EditorToolbar = ({
     onExport,
     onNewProject,
 }) => {
+    const { getCreditBalance, creditBalance, loading } = useGetCreditBalance();
+
+    useEffect(() => {
+        getCreditBalance();
+    }, []);
+
+    const displayBalance = creditBalance?.balance
+        ? parseFloat(creditBalance.balance).toLocaleString()
+        : '0';
+
     return (
         <AppBar position="static" elevation={0} sx={{ borderRadius: 0, bgcolor: '#141924' }}>
             <Toolbar>
@@ -33,7 +43,7 @@ const EditorToolbar = ({
                 <Tooltip title="Available Credits">
                     <Chip
                         icon={<AccountBalanceWallet sx={{ color: 'white !important' }} />}
-                        label={`${creditBalance.toLocaleString()} Credits`}
+                        label={loading ? 'Loading...' : `${displayBalance} Credits`}
                         onClick={onBuyCredits}
                         sx={{
                             mr: 2,

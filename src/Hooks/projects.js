@@ -63,12 +63,128 @@ const normalizeProject = (backendProject) => {
 //CREATE PROJECT
 export const useCreateProject = () => {
     const [loading, setLoading] = useState(false);
+
     const navigate = useNavigate();
-    const { showLoader, hideLoader } = useLoader();
+    const { showLoader, hideLoader, updateProgress } = useLoader();
+
+    // Smart progress tracker that adapts to actual API response time
+    const createAdaptiveProgress = () => {
+        let progressInterval = null;
+        let currentProgress = 0;
+        let isCompleted = false;
+        let stepIndex = 0;
+
+        const progressSteps = [
+            { percent: 15, message: 'Initializing AI...', minTime: 1000 },
+            { percent: 30, message: 'Analyzing your requirements...', minTime: 2000 },
+            { percent: 45, message: 'Generating design structure...', minTime: 2000 },
+            { percent: 60, message: 'Creating components...', minTime: 2000 },
+            { percent: 75, message: 'Building pages...', minTime: 2000 },
+            { percent: 90, message: 'Applying styles and themes...', minTime: 1500 },
+        ];
+
+        const startProgress = () => {
+            currentProgress = 0;
+            stepIndex = 0;
+            isCompleted = false;
+
+            updateProgress(0, 'Starting project creation...');
+
+            // Start with first step immediately
+            setTimeout(() => {
+                if (!isCompleted) {
+                    moveToNextStep();
+                }
+            }, 500);
+
+            // Gradual progress within current step
+            progressInterval = setInterval(() => {
+                if (!isCompleted && stepIndex < progressSteps.length) {
+                    const currentStep = progressSteps[stepIndex];
+                    const nextStepPercent = currentStep.percent;
+
+                    // Slowly increment towards next milestone
+                    if (currentProgress < nextStepPercent - 2) {
+                        currentProgress += 0.5;
+                        updateProgress(Math.floor(currentProgress), currentStep.message);
+                    }
+                }
+            }, 200);
+        };
+
+        const moveToNextStep = () => {
+            if (stepIndex < progressSteps.length && !isCompleted) {
+                const step = progressSteps[stepIndex];
+                currentProgress = step.percent;
+                updateProgress(step.percent, step.message);
+                stepIndex++;
+
+                // Schedule next step
+                if (stepIndex < progressSteps.length) {
+                    setTimeout(() => {
+                        if (!isCompleted) {
+                            moveToNextStep();
+                        }
+                    }, step.minTime);
+                }
+            }
+        };
+
+        const completeProgress = () => {
+            return new Promise((resolve) => {
+                isCompleted = true;
+                if (progressInterval) {
+                    clearInterval(progressInterval);
+                }
+
+                // Quickly move to 95%
+                currentProgress = 95;
+                updateProgress(95, 'Finalizing your project...');
+
+                // Then smoothly to 100%
+                setTimeout(() => {
+                    updateProgress(100, 'Project created successfully!');
+
+                    // Give user time to see 100%
+                    setTimeout(() => {
+                        resolve();
+                    }, 800);
+                }, 400);
+            });
+        };
+
+        const cancelProgress = () => {
+            isCompleted = true;
+            if (progressInterval) {
+                clearInterval(progressInterval);
+            }
+            updateProgress(0, '');
+        };
+
+        return {
+            start: startProgress,
+            complete: completeProgress,
+            cancel: cancelProgress,
+        };
+    };
 
     const createProject = async (input) => {
         setLoading(true);
-        showLoader('Creating your project...', 'orbit');
+
+        // Show loader with progress ONLY for prompt mode
+        const isPromptMode = input.mode === "prompt";
+        showLoader(
+            'Creating your project...',
+            'orbit',
+            { showProgress: isPromptMode }
+        );
+
+        // Create adaptive progress tracker only for prompt mode
+        let progressTracker = null;
+        if (isPromptMode) {
+            progressTracker = createAdaptiveProgress();
+            progressTracker.start();
+        }
 
         try {
             let payload;
@@ -139,6 +255,10 @@ export const useCreateProject = () => {
                 const slug = created.slug || created.data?.slug || created.id;
                 console.log("Navigating to editor:", slug);
 
+                if (progressTracker) {
+                    await progressTracker.complete();
+                }
+
                 hideLoader();
                 showToast.success('Project created successfully!');
 
@@ -149,6 +269,7 @@ export const useCreateProject = () => {
 
                 return created;
             }
+
             // MANUAL MODE
             payload = {
                 mode: "manual",
@@ -211,6 +332,12 @@ export const useCreateProject = () => {
 
         } catch (err) {
             console.error("CREATE PROJECT ERROR:", err);
+
+            // Cancel progress on error
+            if (progressTracker) {
+                progressTracker.cancel();
+            }
+
             hideLoader();
 
             if (err.message.includes("Unauthorized")) {
@@ -229,9 +356,11 @@ export const useCreateProject = () => {
         }
     };
 
-    return { createProject, loading };
+    return {
+        createProject,
+        loading,
+    };
 };
-
 //GET ALL PROJECTS
 export const useGetProjects = () => {
     const [loading, setLoading] = useState(false);
@@ -478,61 +607,6 @@ export const useUpdateProject = () => {
     return { updateProject, loading };
 };
 
-// AI UPDATE PROJECT
-// export const useAIUpdateProject = () => {
-//     const [loading, setLoading] = useState(false);
-//     const { showLoader, hideLoader } = useLoader();
-//     const navigate = useNavigate();
-
-//     const aiUpdateProject = async (projectId, updateData) => {
-//         setLoading(true);
-//         showLoader('AI is updating your page...', 'orbit');
-
-//         try {
-//             const payload = {
-//                 mode: 'prompt',
-//                 pageId: updateData.pageId,
-//                 updates: {
-//                     html: updateData.html,
-//                     css: updateData.css,
-//                     components: updateData.components,
-//                     styles: updateData.styles
-//                 }
-//             };
-
-//             const res = await apiCall(`/V1/project/ai-update-page/${projectId}`, payload, 'PATCH');
-
-//             if (!res?.success) {
-//                 throw new Error(res?.message || "AI update failed");
-//             }
-
-//             const result = res.result || res.data;
-
-//             hideLoader();
-//             showToast.success('AI update applied successfully!');
-
-//             return result ? normalizeProject(result) : null;
-
-//         } catch (err) {
-//             console.error("❌ AI UPDATE ERROR:", err);
-//             hideLoader();
-
-//             if (err.message?.includes('Unauthorized')) {
-//                 showToast.error('Session expired. Please log in again.');
-//                 navigate('/login');
-//             } else if (!err.message?.includes('Validation')) {
-//                 showToast.error(err.message || "Failed to apply AI updates");
-//             }
-
-//             return null;
-
-//         } finally {
-//             setLoading(false);
-//         }
-//     };
-
-//     return { aiUpdateProject, loading };
-// };
 
 // ✅ UPDATE PAGE WITH AI
 export const useUpdatePageWithAI = () => {
@@ -545,22 +619,30 @@ export const useUpdatePageWithAI = () => {
         showLoader('Updating your page with AI...', 'orbit');
 
         try {
-            // ✅ Format similar to create project (prompt mode)
+            const url = `/V1/user/project/ai-update-page?projectId=${input.projectId}&pageId=${input.pageId}`;
+
             const payload = {
-                projectId: input.projectId,
-                pageId: input.pageId,
+                mode: "prompt",
                 prompt: input.prompt,
+                websiteName: input.websiteName || "My Project",
+                websiteType: input.websiteType || "landing-page",
+                theme: input.theme || {
+                    font: "Inter",
+                    primaryColor: "#1976d2",
+                    secondaryColor: "#0F172A",
+                    backgroundColor: "#FFFFFF"
+                },
                 files: input.files?.length ? input.files : undefined
             };
 
+            console.log("AI UPDATE PAGE URL:", url);
             console.log("AI UPDATE PAGE PAYLOAD:", payload);
 
-            const res = await apiCall("/V1/user/project/ai-update-page", payload);
+            const res = await apiCall(url, payload);
             console.log("AI UPDATE PAGE RESPONSE:", res);
 
             let updatedPage = null;
 
-            // ✅ Parse response similar to create project
             if (res?.result?.data) {
                 updatedPage = res.result.data;
             } else if (res?.data) {

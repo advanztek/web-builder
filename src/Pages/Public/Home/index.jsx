@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Box, Container, Typography } from '@mui/material';
-import { FeaturesSection, ToolsSection } from  '../../../Components'
+import { FeaturesSection } from  '../../../Components'
 import WhatMattersSection from '../../../Components/WhatMatters';
 import TestimonialSection from '../../../Components/TestimonialSection';
 import FAQSection from '../../../Components/FaqSection';

@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useUpdateProfile } from '../../../Hooks/profile';
 import {
     Box,
     Container,
@@ -64,11 +65,21 @@ import {
 const ProfilePage = () => {
     const theme = useTheme();
     const navigate = useNavigate();
+    const { updateProfile, loading: updateLoading } = useUpdateProfile();
 
     const [activeTab, setActiveTab] = useState(0);
     const [editMode, setEditMode] = useState(false);
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
     const [avatarDialog, setAvatarDialog] = useState(false);
+
+    // Get user info from your auth context or local storage
+    // This is a placeholder - replace with your actual auth logic
+    const currentUser = {
+        id: 40, // Get from your auth context
+        role: 1, // 1 for regular user, 2 for admin (adjust based on your role system)
+    };
+    
+    const isAdmin = currentUser.role === 2; // Adjust this based on your role system
 
     const [profileData, setProfileData] = useState({
         firstName: 'John',
@@ -85,6 +96,8 @@ const ProfilePage = () => {
         credits: 2500,
         level: 'Pro',
     });
+
+    const [originalProfileData, setOriginalProfileData] = useState({ ...profileData });
 
     const [settings, setSettings] = useState({
         emailNotifications: true,
@@ -111,16 +124,46 @@ const ProfilePage = () => {
         }));
     };
 
-    const handleSaveProfile = () => {
-        setEditMode(false);
-        setSnackbar({
-            open: true,
-            message: 'Profile updated successfully!',
-            severity: 'success'
-        });
+    const handleSaveProfile = async () => {
+        // Prepare data for API call based on your backend's expected field names
+        const updateData = {
+            firstname: profileData.firstName,
+            lastname: profileData.lastName,
+            email: profileData.email,
+            phone: profileData.phone,
+            country: profileData.location,
+            // Add other fields as needed by your API
+        };
+
+        // Call the update profile hook
+        const result = await updateProfile(
+            updateData,
+            isAdmin ? currentUser.id : null, // Pass userId only if admin
+            isAdmin
+        );
+
+        if (result) {
+            // Update successful
+            setEditMode(false);
+            setOriginalProfileData({ ...profileData }); // Save the new state as original
+            
+            // Update local state with response data if needed
+            if (result.firstname) {
+                setProfileData(prev => ({
+                    ...prev,
+                    firstName: result.firstname,
+                    lastName: result.lastname,
+                    email: result.email,
+                    phone: result.phone || prev.phone,
+                    location: result.country || prev.location,
+                }));
+            }
+        }
     };
 
     const handleCancelEdit = () => {
+        // Restore original data
+        setProfileData({ ...originalProfileData });
         setEditMode(false);
     };
 
@@ -405,6 +448,7 @@ const ProfilePage = () => {
                                                             variant="outlined"
                                                             startIcon={<Cancel />}
                                                             onClick={handleCancelEdit}
+                                                            disabled={updateLoading}
                                                         >
                                                             Cancel
                                                         </Button>
@@ -412,11 +456,12 @@ const ProfilePage = () => {
                                                             variant="contained"
                                                             startIcon={<Save />}
                                                             onClick={handleSaveProfile}
+                                                            disabled={updateLoading}
                                                             sx={{
                                                                 background: 'linear-gradient(135deg, #07175eff 0%, #000000ff 100%)',
                                                             }}
                                                         >
-                                                            Save Changes
+                                                            {updateLoading ? 'Saving...' : 'Save Changes'}
                                                         </Button>
                                                     </Box>
                                                 )}
@@ -429,7 +474,7 @@ const ProfilePage = () => {
                                                         label="First Name"
                                                         value={profileData.firstName}
                                                         onChange={handleInputChange('firstName')}
-                                                        disabled={!editMode}
+                                                        disabled={!editMode || updateLoading}
                                                     />
                                                 </Grid>
                                                 <Grid size={{ xs:12, sm:6 }}>
@@ -438,7 +483,7 @@ const ProfilePage = () => {
                                                         label="Last Name"
                                                         value={profileData.lastName}
                                                         onChange={handleInputChange('lastName')}
-                                                        disabled={!editMode}
+                                                        disabled={!editMode || updateLoading}
                                                     />
                                                 </Grid>
                                                 <Grid size={{ xs:12 }}>
@@ -448,7 +493,7 @@ const ProfilePage = () => {
                                                         type="email"
                                                         value={profileData.email}
                                                         onChange={handleInputChange('email')}
-                                                        disabled={!editMode}
+                                                        disabled={!editMode || updateLoading}
                                                         InputProps={{
                                                             startAdornment: <Email color="action" sx={{ mr: 1 }} />
                                                         }}
@@ -460,7 +505,7 @@ const ProfilePage = () => {
                                                         label="Phone"
                                                         value={profileData.phone}
                                                         onChange={handleInputChange('phone')}
-                                                        disabled={!editMode}
+                                                        disabled={!editMode || updateLoading}
                                                         InputProps={{
                                                             startAdornment: <Phone color="action" sx={{ mr: 1 }} />
                                                         }}
@@ -472,7 +517,7 @@ const ProfilePage = () => {
                                                         label="Location"
                                                         value={profileData.location}
                                                         onChange={handleInputChange('location')}
-                                                        disabled={!editMode}
+                                                        disabled={!editMode || updateLoading}
                                                         InputProps={{
                                                             startAdornment: <LocationOn color="action" sx={{ mr: 1 }} />
                                                         }}
@@ -484,7 +529,7 @@ const ProfilePage = () => {
                                                         label="Company"
                                                         value={profileData.company}
                                                         onChange={handleInputChange('company')}
-                                                        disabled={!editMode}
+                                                        disabled={!editMode || updateLoading}
                                                         InputProps={{
                                                             startAdornment: <Business color="action" sx={{ mr: 1 }} />
                                                         }}
@@ -496,7 +541,7 @@ const ProfilePage = () => {
                                                         label="Website"
                                                         value={profileData.website}
                                                         onChange={handleInputChange('website')}
-                                                        disabled={!editMode}
+                                                        disabled={!editMode || updateLoading}
                                                         InputProps={{
                                                             startAdornment: <Language color="action" sx={{ mr: 1 }} />
                                                         }}
@@ -508,7 +553,9 @@ const ProfilePage = () => {
                                                         label="Bio"
                                                         value={profileData.bio}
                                                         onChange={handleInputChange('bio')}
-                                                        disabled={!editMode}
+                                                        disabled={!editMode || updateLoading}
+                                                        multiline
+                                                        rows={3}
                                                     />
                                                 </Grid>
                                             </Grid>

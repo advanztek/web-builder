@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { showToast } from '../Utils/toast';
 import { useLoader } from '../Context/LoaderContext';
 import { apiCall } from '../Utils/ApiCall';
+import { authApiCall } from '../Utils/authApiCall';
 
 export const useGetPackages = () => {
     const [loading, setLoading] = useState(false);
@@ -70,6 +71,66 @@ export const useGetPackages = () => {
     return { getPackages, packages, loading };
 };
 
+// Get credit balance
+export const useGetCreditBalance = () => {
+    const [loading, setLoading] = useState(false);
+    const [creditBalance, setCreditBalance] = useState(null);
+    const { showLoader, hideLoader } = useLoader();
+    const navigate = useNavigate();
+
+    const getCreditBalance = useCallback(async () => {
+        setLoading(true);
+
+        try {
+            const res = await apiCall("/V1/user/credit/balance", null, 'GET');
+
+            console.log('Raw API Response:', res);
+
+            if (!res?.success) {
+                throw new Error(res?.message || "Failed to fetch credit balance");
+            }
+
+            let balanceData = null;
+
+            if (res.result && Array.isArray(res.result) && res.result.length > 0) {
+                // If result is an array, take the first item
+                balanceData = res.result[0];
+            } else if (res.result && typeof res.result === 'object' && !Array.isArray(res.result)) {
+                // If result is a single object
+                balanceData = res.result;
+            } else if (res.data && typeof res.data === 'object') {
+                // Fallback to res.data
+                balanceData = res.data;
+            }
+
+            console.log('Processed balance data:', balanceData);
+
+            setCreditBalance(balanceData);
+
+            return balanceData;
+
+        } catch (err) {
+            console.error("GET CREDIT BALANCE ERROR:", err);
+            hideLoader();
+
+            if (err.message?.includes('Unauthorized')) {
+                showToast.error('Session expired. Please log in again.');
+                navigate('/login');
+            } else {
+                showToast.error(err.message || 'Failed to load credit balance');
+            }
+
+            setCreditBalance(null);
+            return null;
+
+        } finally {
+            setLoading(false);
+        }
+    }, [navigate, showLoader, hideLoader]);
+
+    return { getCreditBalance, creditBalance, loading };
+};
+
 // Create credit package
 export const useCreateCreditPackage = () => {
     const [loading, setLoading] = useState(false);
@@ -77,7 +138,7 @@ export const useCreateCreditPackage = () => {
     const createPackage = async (packageData) => {
         setLoading(true);
         try {
-            const result = await apiCall('/V1/admin/package/create', 'POST', packageData);
+            const result = await apiCall('/V1/admin/package/create', packageData, 'POST', );
             showToast.success('Credit package created successfully!');
             return result;
         } catch (error) {
@@ -99,7 +160,7 @@ export const useUpdateCreditPackage = () => {
     const updatePackage = async (packageId, packageData) => {
         setLoading(true);
         try {
-            const result = await apiCall(`/V1/admin/package/update/${packageId}`, 'PUT', packageData);
+            const result = await apiCall(`/V1/admin/package/update/${packageId}`, packageData, 'PATCH');
             showToast.success('Credit package updated successfully!');
             return result;
         } catch (error) {
@@ -121,7 +182,7 @@ export const useDeleteCreditPackage = () => {
     const deletePackage = async (packageId) => {
         setLoading(true);
         try {
-            const result = await apiCall(`/V1/admin/package/delete/${packageId}`, 'DELETE');
+            const result = await apiCall(`/V1/admin/package/delete/${packageId}`, null, 'DELETE');
             showToast.success('Credit package deleted successfully!');
             return result;
         } catch (error) {

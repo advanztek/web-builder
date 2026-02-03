@@ -3,8 +3,32 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../Context/AuthContext';
 import { Box, CircularProgress } from '@mui/material';
 
-const ProtectedRoute = ({ children, requiredRole }) => {
-    const { user, loading, isAuthenticated, isSuperAdmin, isRegularUser } = useAuth();
+const ROLE_MAP = {
+    1: 'superadmin',
+    2: 'admin',
+    3: 'user',
+};
+
+const normalizeRole = (role) => {
+    // If backend sends number or numeric string
+    if (!isNaN(role)) {
+        return ROLE_MAP[Number(role)];
+    }
+
+    // If backend sends string like "SUPER_ADMIN" or "super_admin"
+    if (typeof role === 'string') {
+        return role.toLowerCase().replace('_', '');
+    }
+
+    return undefined;
+};
+
+const ProtectedRoute = ({
+    allowedRoles = [],
+    children,
+    redirectTo = '/dashboard',
+}) => {
+    const { user, loading, isAuthenticated } = useAuth();
 
     if (loading) {
         return (
@@ -22,22 +46,26 @@ const ProtectedRoute = ({ children, requiredRole }) => {
         );
     }
 
-    // Redirect to login if not authenticated
+    // Not logged in → login page
     if (!isAuthenticated) {
         return <Navigate to="/login" replace />;
     }
 
-    // Check role-based access
-    if (requiredRole) {
-        if (requiredRole === 'super_admin' && !isSuperAdmin()) {
-            // Redirect regular users trying to access admin routes
-            return <Navigate to="/dashboard" replace />;
-        }
+    const normalizedUserRole = normalizeRole(user?.role);
+    const normalizedAllowedRoles = allowedRoles.map(r =>
+        r.toLowerCase().replace('_', '')
+    );
 
-        if (requiredRole === 'user' && !isRegularUser()) {
-            // Redirect admins trying to access user-only routes (if any)
-            return <Navigate to="/dashboard" replace />;
-        }
+    console.log('Raw role:', user?.role);
+    console.log('Normalized role:', normalizedUserRole);
+    console.log('Allowed roles:', normalizedAllowedRoles);
+
+    // Role check
+    if (
+        normalizedAllowedRoles.length > 0 &&
+        !normalizedAllowedRoles.includes(normalizedUserRole)
+    ) {
+        return <Navigate to={redirectTo} replace />;
     }
 
     return children;

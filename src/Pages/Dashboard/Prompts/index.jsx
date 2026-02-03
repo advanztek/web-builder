@@ -13,7 +13,6 @@ import {
   Alert,
   Snackbar,
   Paper,
-  Backdrop,
 } from '@mui/material';
 import {
   ArrowUpward,
@@ -29,16 +28,11 @@ import {
 import { useCreateProject } from '../../../Hooks/projects';
 import { setActiveProject } from '../../../Store/slices/projectsSlice';
 
-// ---------------- SLUG / NAME HELPERS ----------------
-const slugify = (text = '') =>
-  text
-    .toLowerCase()
-    .replace(/[^a-z0-9 ]/g, '')
-    .replace(/\s+/g, '-')
-    .slice(0, 32) || 'website';
-
-const deriveWebsiteName = (prompt = '') => {
-  if (!prompt.trim()) return 'AI Website';
+// ---------------- HELPERS ----------------
+const deriveWebsiteName = (prompt = '', hasFiles = false) => {
+  if (!prompt.trim()) {
+    return hasFiles ? 'AI Generated Website' : 'AI Website';
+  }
   const words = prompt
     .replace(/[^a-zA-Z0-9 ]/g, '')
     .split(' ')
@@ -48,13 +42,26 @@ const deriveWebsiteName = (prompt = '') => {
   return words || 'AI Website';
 };
 
+// Convert file to base64
 const fileToBase64 = (file) =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result.split(',')[1]);
-    reader.onerror = reject;
+    reader.onload = () => {
+      const base64String = reader.result.split(',')[1];
+      resolve(base64String);
+    };
+    reader.onerror = (error) => reject(error);
     reader.readAsDataURL(file);
   });
+
+// Format file size for display
+const formatFileSize = (bytes) => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+};
 
 // ---------------- TYPEWRITER PLACEHOLDER ----------------
 const TypewriterPlaceholder = () => {
@@ -133,15 +140,14 @@ const PromptsPage = () => {
   const dispatch = useDispatch();
   const fileInputRef = useRef(null);
 
-  const { createProject } = useCreateProject();
+  const { createProject, loading } = useCreateProject();
 
   const [inputValue, setInputValue] = useState('');
   const [showAllSuggestions, setShowAllSuggestions] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
   const [isRecording, setIsRecording] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [loadingMessage, setLoadingMessage] = useState('');
+  const [isProcessingFiles, setIsProcessingFiles] = useState(false);
 
   // ---------------- SUGGESTIONS ----------------
   const suggestions = [
@@ -167,80 +173,179 @@ const PromptsPage = () => {
     ? suggestions
     : suggestions.slice(0, 6);
 
-  // ---------------- FILES ----------------
+  // ---------------- FILE UPLOAD HANDLER ----------------
   const handleFileUpload = async (event) => {
     const files = Array.from(event.target.files);
-    const validFiles = [];
-
-    for (const file of files) {
-      const base64 = await fileToBase64(file);
-      validFiles.push({
-        id: Date.now() + Math.random(),
-        name: file.name,
-        type: file.type,
-        size: file.size,
-        data: base64,
-        preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
-        isPDF: file.type === 'application/pdf',
-      });
-    }
-
-    setUploadedFiles((prev) => [...prev, ...validFiles]);
-  };
-
-  const handleRemoveFile = (id) => {
-    setUploadedFiles((prev) => prev.filter((f) => f.id !== id));
-  };
-
-  // ---------------- VOICE ----------------
-  const handleVoiceRecord = () => {
-    setIsRecording(true);
-    setTimeout(() => setIsRecording(false), 2000);
-  };
-
-  // ---------------- AI GENERATE - BACKEND SCHEMA COMPLIANT ----------------
-  const handleGenerate = async () => {
-    if (isGenerating) return;
-
-    // Validate input
-    const prompt = inputValue.trim();
     
-    if (!prompt && uploadedFiles.length === 0) {
+    if (files.length === 0) return;
+
+    setIsProcessingFiles(true);
+    const validFiles = [];
+    const errors = [];
+
+    try {
+      for (const file of files) {
+        // Validate file size (max 10MB)
+        if (file.size > 10 * 1024 * 1024) {
+          errors.push(`${file.name} is too large (max 10MB)`);
+          continue;
+        }
+
+        // Validate file type
+        const validTypes = [
+          'image/jpeg',
+          'image/jpg',
+          'image/png',
+          'image/gif',
+          'image/webp',
+          'application/pdf',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'text/plain',
+        ];
+
+        if (!validTypes.includes(file.type)) {
+          errors.push(`${file.name} has unsupported file type`);
+          continue;
+        }
+
+        try {
+          // Convert to base64
+          const base64Data = await fileToBase64(file);
+          
+          // Create file object
+          const fileObj = {
+            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            data: base64Data,
+            preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+            isPDF: file.type === 'application/pdf',
+            isImage: file.type.startsWith('image/'),
+            isDocument: file.type.includes('document') || file.type.includes('msword') || file.type === 'text/plain',
+          };
+
+          validFiles.push(fileObj);
+        } catch (error) {
+          console.error(`Error processing ${file.name}:`, error);
+          errors.push(`Failed to process ${file.name}`);
+        }
+      }
+
+      // Add valid files to state
+      if (validFiles.length > 0) {
+        setUploadedFiles((prev) => [...prev, ...validFiles]);
+        setSnackbar({
+          open: true,
+          message: `${validFiles.length} file(s) uploaded successfully`,
+          severity: 'success',
+        });
+      }
+
+      // Show errors if any
+      if (errors.length > 0) {
+        setSnackbar({
+          open: true,
+          message: errors.join(', '),
+          severity: 'warning',
+        });
+      }
+
+    } catch (error) {
+      console.error('File upload error:', error);
       setSnackbar({
         open: true,
-        message: 'Please enter a prompt or upload files',
-        severity: 'warning'
+        message: 'Error uploading files. Please try again.',
+        severity: 'error',
       });
-      return;
+    } finally {
+      setIsProcessingFiles(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // ---------------- REMOVE FILE ----------------
+  const handleRemoveFile = (id) => {
+    setUploadedFiles((prev) => {
+      const fileToRemove = prev.find(f => f.id === id);
+      if (fileToRemove && fileToRemove.preview) {
+        URL.revokeObjectURL(fileToRemove.preview);
+      }
+      return prev.filter((f) => f.id !== id);
+    });
+
+    setSnackbar({
+      open: true,
+      message: 'File removed',
+      severity: 'info',
+    });
+  };
+
+  // ---------------- VOICE RECORDING ----------------
+  const handleVoiceRecord = () => {
+    setIsRecording(true);
+    setTimeout(() => {
+      setIsRecording(false);
+      setSnackbar({
+        open: true,
+        message: 'Voice recording feature coming soon',
+        severity: 'info',
+      });
+    }, 2000);
+  };
+
+  // ---------------- VALIDATION ----------------
+  const validateInput = () => {
+    const prompt = inputValue.trim();
+    const hasFiles = uploadedFiles.length > 0;
+
+    if (!prompt && !hasFiles) {
+      setSnackbar({
+        open: true,
+        message: 'Please enter a prompt or upload files to continue',
+        severity: 'warning',
+      });
+      return false;
     }
 
-    // Backend requires minimum 10 characters for prompt
-    if (prompt.length < 10) {
+    if (prompt && prompt.length < 10) {
       setSnackbar({
         open: true,
         message: 'Prompt must be at least 10 characters long',
-        severity: 'warning'
+        severity: 'warning',
       });
-      return;
+      return false;
     }
 
-    setIsGenerating(true);
-    setLoadingMessage('AI is creating your project...');
+    return true;
+  };
 
-    const websiteName = deriveWebsiteName(prompt);
+  // ---------------- AI GENERATE ----------------
+  const handleGenerate = async () => {
+    if (loading || isProcessingFiles) return;
+
+    if (!validateInput()) return;
+
+    const prompt = inputValue.trim();
+    const hasFiles = uploadedFiles.length > 0;
+
+    const websiteName = deriveWebsiteName(prompt, hasFiles);
 
     console.log('🚀 STARTING PROJECT CREATION');
-    console.log('Prompt length:', prompt.length);
+    console.log('Prompt:', prompt || '(none - files only)');
+    console.log('Files count:', uploadedFiles.length);
     console.log('Website name:', websiteName);
 
     try {
-      // EXACT BACKEND SCHEMA COMPLIANT PAYLOAD
       const payload = {
         mode: "prompt",
-        prompt: prompt,  // min 10, max 5000 characters
+        prompt: prompt || "Create a website based on the uploaded files",
         websiteName: websiteName,
-        websiteType: "ai-generated", // optional
-        pages: ["Home"], // optional array of strings
+        websiteType: "ai-generated",
+        pages: ["Home"],
         theme: {
           font: "Inter",
           primaryColor: "#1976d2",
@@ -249,103 +354,74 @@ const PromptsPage = () => {
         }
       };
 
-      // Add files if any
-      if (uploadedFiles.length > 0) {
-        payload.files = uploadedFiles.map((f) => ({
-          name: f.name,
-          type: f.type,
-          data: f.data  // Base64 string
+      if (hasFiles) {
+        payload.files = uploadedFiles.map((file) => ({
+          name: file.name,
+          type: file.type,
+          data: file.data
         }));
+        console.log('📎 Attaching files:', payload.files.map(f => ({ name: f.name, type: f.type })));
       }
 
-      console.log('📤 PAYLOAD:', payload);
+      console.log('📤 PAYLOAD:', { ...payload, files: payload.files ? `${payload.files.length} files` : 'none' });
 
       const project = await createProject(payload);
 
       if (project && project.id) {
         console.log('✅ PROJECT CREATED:', project);
 
-        // Store in Redux
         dispatch(setActiveProject(project.id));
-
-        // Store in sessionStorage for editor
         sessionStorage.setItem('pending_project', JSON.stringify(project));
 
-        // Store in localStorage as recent
         try {
           const recentProjects = JSON.parse(localStorage.getItem('recent_projects') || '[]');
           recentProjects.unshift(project);
           localStorage.setItem('recent_projects', JSON.stringify(recentProjects.slice(0, 10)));
         } catch (e) {
-          console.warn('Could not store in localStorage');
+          console.warn('Could not store in localStorage:', e);
         }
 
-        setSnackbar({
-          open: true,
-          message: 'Project created successfully!',
-          severity: 'success'
+        // Clean up file previews
+        uploadedFiles.forEach(file => {
+          if (file.preview) {
+            URL.revokeObjectURL(file.preview);
+          }
         });
 
-        setIsGenerating(false);
-        setLoadingMessage('');
-
-        // Navigate to editor
         const routeId = project.slug || project.id;
         console.log('➡️ NAVIGATING TO:', `/dashboard/editor/${routeId}`);
 
-        setTimeout(() => {
-          navigate(`/dashboard/editor/${routeId}`, {
-            state: {
-              projectId: project.id,
-              createdProject: project,
-              fromPrompts: true
-            }
-          });
-        }, 500);
-
-      } else {
-        throw new Error('No project data returned from server');
+      } else if (project === null) {
+        // Error already handled in hook
+        console.log('Project creation returned null');
       }
 
     } catch (err) {
       console.error('❌ PROJECT CREATION ERROR:', err);
 
+      let errorMessage = 'Failed to create project. Please try again.';
+      
+      if (err.response) {
+        errorMessage = err.response.data?.message || err.response.data?.error || errorMessage;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+
       setSnackbar({
         open: true,
-        message: err.message || 'Failed to create project. Please try again.',
+        message: errorMessage,
         severity: 'error'
       });
-
-      setIsGenerating(false);
-      setLoadingMessage('');
     }
   };
 
-  // ---------------- UI ----------------
+  const canGenerate = (inputValue.trim().length >= 10 || uploadedFiles.length > 0) && !loading && !isProcessingFiles;
+
+  // ---------------- UI RENDER ----------------
   return (
     <Box sx={{ minHeight: '100vh', background: '#0a0a0a' }}>
-      {/* Loading Backdrop */}
-      <Backdrop
-        open={isGenerating}
-        sx={{
-          color: '#fff',
-          zIndex: (theme) => theme.zIndex.drawer + 1,
-          backdropFilter: 'blur(8px)',
-          backgroundColor: 'rgba(0, 0, 0, 0.8)',
-        }}
-      >
-        <Box sx={{ textAlign: 'center' }}>
-          <CircularProgress size={60} sx={{ color: '#ff6b9d', mb: 2 }} />
-          <Typography variant="h6" sx={{ color: 'white', mb: 1 }}>
-            {loadingMessage}
-          </Typography>
-          <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)' }}>
-            This may take a few moments...
-          </Typography>
-        </Box>
-      </Backdrop>
-
       <Container maxWidth="md" sx={{ pt: 6, pb: 6 }}>
+        {/* Hidden File Input */}
         <input
           ref={fileInputRef}
           type="file"
@@ -355,6 +431,7 @@ const PromptsPage = () => {
           onChange={handleFileUpload}
         />
 
+        {/* Back Button */}
         <Button 
           startIcon={<ArrowBack />} 
           sx={{ color: 'white', mb: 4 }} 
@@ -363,6 +440,7 @@ const PromptsPage = () => {
           Back to Dashboard
         </Button>
 
+        {/* Header */}
         <Typography
           variant="h1"
           sx={{
@@ -378,9 +456,10 @@ const PromptsPage = () => {
         </Typography>
 
         <Typography sx={{ textAlign: 'center', mb: 4, color: 'rgba(255,255,255,0.7)' }}>
-          Describe what you want — AI will design and build it
+          Describe what you want or upload files — AI will design and build it
         </Typography>
 
+        {/* Main Input Area */}
         <Paper
           sx={{
             p: 3,
@@ -403,27 +482,43 @@ const PromptsPage = () => {
             variant="standard"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            InputProps={{ disableUnderline: true, sx: { color: 'white', fontSize: 16 } }}
+            placeholder={uploadedFiles.length > 0 ? "Add a description (optional)" : ""}
+            InputProps={{ 
+              disableUnderline: true, 
+              sx: { color: 'white', fontSize: 16 } 
+            }}
             sx={{
               '& .MuiInputBase-input': {
                 color: 'white',
+              },
+              '& .MuiInputBase-input::placeholder': {
+                color: 'rgba(255,255,255,0.5)',
+                opacity: 1,
               }
             }}
           />
 
+          {/* Action Buttons */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
-            <Box sx={{ display: 'flex', gap: 1 }}>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
               <IconButton 
-                sx={{ px:1.2, color: 'white' }} 
+                sx={{ 
+                  px: 1.2, 
+                  color: 'white',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                  }
+                }} 
                 onClick={() => fileInputRef.current?.click()}
+                disabled={isProcessingFiles}
               >
-                <AttachFile />
+                {isProcessingFiles ? <CircularProgress size={20} /> : <AttachFile />}
               </IconButton>
               <Button 
                 startIcon={<Book />} 
                 variant="outlined" 
                 sx={{ 
-                  py:0.4,
+                  py: 0.4,
                   color: 'white',
                   borderColor: 'rgba(255,255,255,0.3)',
                   '&:hover': {
@@ -436,89 +531,142 @@ const PromptsPage = () => {
               </Button>
             </Box>
 
-            <Box sx={{ display: 'flex', gap: 1 }}>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
               <IconButton 
-                sx={{ px: 1.2, color: isRecording ? '#191cccff' : 'white' }} 
+                sx={{ 
+                  px: 1.2, 
+                  color: isRecording ? '#191cccff' : 'white',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                  }
+                }} 
                 onClick={handleVoiceRecord}
+                disabled={loading}
               >
                 <Mic />
               </IconButton>
 
               <IconButton
                 onClick={handleGenerate}
-                disabled={isGenerating}
+                disabled={!canGenerate}
                 sx={{ 
-                  px:1.1,
-                  color: '#ff6b9d', 
+                  px: 1.1,
+                  color: canGenerate ? '#ff6b9d' : 'rgba(255,107,157,0.3)', 
                   border: '1px solid rgba(255,107,157,0.5)',
-                  backgroundColor: 'rgba(255,107,157,0.1)',
+                  backgroundColor: canGenerate ? 'rgba(255,107,157,0.1)' : 'rgba(255,107,157,0.05)',
                   '&:hover': {
-                    backgroundColor: 'rgba(255,107,157,0.2)',
+                    backgroundColor: canGenerate ? 'rgba(255,107,157,0.2)' : 'rgba(255,107,157,0.05)',
                   },
                   '&:disabled': {
-                    color: 'rgba(255,107,157,0.5)',
+                    color: 'rgba(255,107,157,0.3)',
+                    borderColor: 'rgba(255,107,157,0.3)',
                   }
                 }}
               >
-                {isGenerating ? <CircularProgress size={20} /> : <ArrowUpward />}
+                {loading ? <CircularProgress size={20} sx={{ color: '#ff6b9d' }} /> : <ArrowUpward />}
               </IconButton>
             </Box>
           </Box>
         </Paper>
 
-        {/* FILE PREVIEW */}
+        {/* FILE PREVIEW SECTION */}
         {uploadedFiles.length > 0 && (
-          <Box sx={{ mt: 3, display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-            {uploadedFiles.map((file) => (
-              <Paper
-                key={file.id}
-                sx={{
-                  p: 1.5,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1,
-                  background: 'rgba(255,255,255,0.1)',
-                  color: 'white',
-                  position: 'relative',
-                  borderRadius: 2,
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  minWidth: 200,
-                }}
-              >
-                {file.preview ? (
-                  <Box 
-                    component="img" 
-                    src={file.preview} 
-                    sx={{ width: 40, height: 40, borderRadius: 1, objectFit: 'cover' }} 
-                  />
-                ) : file.isPDF ? (
-                  <PictureAsPdf sx={{ fontSize: 40, color: '#f44336' }} />
-                ) : (
-                  <InsertDriveFile sx={{ fontSize: 40, color: '#2196f3' }} />
-                )}
-
-                <Typography variant="body2" noWrap sx={{ flex: 1, maxWidth: 120 }}>
-                  {file.name}
-                </Typography>
-
-                <IconButton
-                  size="small"
-                  sx={{ 
-                    color: 'white', 
+          <Box sx={{ mt: 3 }}>
+            <Typography variant="subtitle1" sx={{ color: 'white', mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <AttachFile fontSize="small" />
+              Uploaded Files ({uploadedFiles.length})
+            </Typography>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+              {uploadedFiles.map((file) => (
+                <Paper
+                  key={file.id}
+                  sx={{
+                    p: 1.5,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1.5,
+                    background: 'rgba(255,255,255,0.1)',
+                    color: 'white',
+                    position: 'relative',
+                    borderRadius: 2,
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    minWidth: 220,
+                    maxWidth: 300,
                     '&:hover': {
-                      backgroundColor: 'rgba(255,255,255,0.2)',
+                      backgroundColor: 'rgba(255,255,255,0.15)',
                     }
                   }}
-                  onClick={() => handleRemoveFile(file.id)}
                 >
-                  <Close fontSize="small" />
-                </IconButton>
-              </Paper>
-            ))}
+                  {/* File Icon/Preview */}
+                  <Box sx={{ flexShrink: 0 }}>
+                    {file.preview ? (
+                      <Box 
+                        component="img" 
+                        src={file.preview} 
+                        alt={file.name}
+                        sx={{ 
+                          width: 50, 
+                          height: 50, 
+                          borderRadius: 1, 
+                          objectFit: 'cover',
+                          border: '1px solid rgba(255,255,255,0.2)'
+                        }} 
+                      />
+                    ) : file.isPDF ? (
+                      <PictureAsPdf sx={{ fontSize: 50, color: '#f44336' }} />
+                    ) : file.isDocument ? (
+                      <InsertDriveFile sx={{ fontSize: 50, color: '#2196f3' }} />
+                    ) : (
+                      <InsertDriveFile sx={{ fontSize: 50, color: '#9e9e9e' }} />
+                    )}
+                  </Box>
+
+                  {/* File Info */}
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography 
+                      variant="body2" 
+                      noWrap 
+                      sx={{ 
+                        fontWeight: 500,
+                        mb: 0.5
+                      }}
+                      title={file.name}
+                    >
+                      {file.name}
+                    </Typography>
+                    <Typography 
+                      variant="caption" 
+                      sx={{ 
+                        color: 'rgba(255,255,255,0.6)',
+                        display: 'block'
+                      }}
+                    >
+                      {formatFileSize(file.size)}
+                    </Typography>
+                  </Box>
+
+                  {/* Remove Button */}
+                  <IconButton
+                    size="small"
+                    sx={{ 
+                      color: 'white',
+                      flexShrink: 0,
+                      '&:hover': {
+                        backgroundColor: 'rgba(255,255,255,0.2)',
+                        color: '#f44336',
+                      }
+                    }}
+                    onClick={() => handleRemoveFile(file.id)}
+                  >
+                    <Close fontSize="small" />
+                  </IconButton>
+                </Paper>
+              ))}
+            </Box>
           </Box>
         )}
 
-        {/* SUGGESTIONS */}
+        {/* SUGGESTIONS SECTION */}
         <Box sx={{ mt: 5, textAlign: 'center' }}>
           <Typography variant="h6" sx={{ color: 'white', mb: 3 }}>
             Or try these suggestions
@@ -536,6 +684,7 @@ const PromptsPage = () => {
                   border: '1px solid rgba(255,255,255,0.2)',
                   '&:hover': {
                     backgroundColor: 'rgba(255,255,255,0.2)',
+                    cursor: 'pointer',
                   }
                 }}
               />
@@ -557,6 +706,7 @@ const PromptsPage = () => {
         </Box>
       </Container>
 
+      {/* Snackbar for notifications */}
       <Snackbar
         open={snackbar.open}
         autoHideDuration={4000}

@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Box } from '@mui/material';
 import { Workspace } from '../../../Components/WorkSpace';
-import { LayoutPanel } from '../../../Components/Tools/LayoutPanel';
+import { LayoutPanel } from '../../../Components/LayoutPanel';
 import { useGetProject } from '../../../Hooks/projects';
 import LoadingScreen from './LoadingScreen';
 import EditorToolbar from './EditorToolbar';

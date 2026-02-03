@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Typography, Fade, CircularProgress } from '@mui/material';
+import { Box, Typography, Fade, CircularProgress, LinearProgress } from '@mui/material';
 import { keyframes } from '@mui/system';
 
 // Pulse animation
@@ -64,10 +64,23 @@ const orbit = keyframes`
   }
 `;
 
+// Shimmer animation for progress bar
+const shimmer = keyframes`
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+`;
+
 const GlobalLoader = ({ 
   open, 
   message = "Loading...", 
-  variant = "gradient" // gradient, dots, spinner, pulse, wave, orbit
+  variant = "gradient",
+  progress = 0,
+  progressMessage = '',
+  showProgress = false
 }) => {
   if (!open) return null;
 
@@ -297,6 +310,81 @@ const GlobalLoader = ({
       >
         {renderLoader()}
         
+        {/* Progress Section - Only shown for AI generation */}
+        {showProgress && (
+          <Box
+            sx={{
+              width: '100%',
+              maxWidth: 500,
+              px: 3,
+              textAlign: 'center',
+            }}
+          >
+            {/* Progress Percentage */}
+            <Typography 
+              variant="h2" 
+              sx={{ 
+                color: 'white', 
+                mb: 2,
+                fontWeight: 'bold',
+                fontSize: '3rem',
+                background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}
+            >
+              {progress}%
+            </Typography>
+
+            {/* Progress Bar */}
+            <Box sx={{ mb: 2, position: 'relative' }}>
+              <LinearProgress 
+                variant="determinate" 
+                value={progress} 
+                sx={{
+                  height: 10,
+                  borderRadius: 5,
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  '& .MuiLinearProgress-bar': {
+                    borderRadius: 5,
+                    background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)',
+                    transition: 'transform 0.3s ease',
+                  }
+                }}
+              />
+              {/* Shimmer effect */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)',
+                  animation: `${shimmer} 2s infinite`,
+                  borderRadius: 5,
+                  pointerEvents: 'none',
+                }}
+              />
+            </Box>
+
+            {/* Progress Message */}
+            {progressMessage && (
+              <Typography 
+                variant="body1" 
+                sx={{ 
+                  color: 'rgba(255, 255, 255, 0.9)',
+                  fontWeight: 500,
+                  mb: 1,
+                }}
+              >
+                {progressMessage}
+              </Typography>
+            )}
+          </Box>
+        )}
+
+        {/* Main Message - Always shown */}
         {message && (
           <Typography
             variant="h6"
@@ -304,11 +392,30 @@ const GlobalLoader = ({
               color: 'white',
               fontWeight: 500,
               textAlign: 'center',
-              animation: `${fadeInOut} 2s ease-in-out infinite`,
+              animation: showProgress ? 'none' : `${fadeInOut} 2s ease-in-out infinite`,
             }}
           >
             {message}
           </Typography>
+        )}
+
+        {/* Animated dots - Only when showing progress */}
+        {showProgress && (
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            {[0, 1, 2].map((i) => (
+              <Box
+                key={i}
+                sx={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  backgroundColor: '#667eea',
+                  animation: `${bounce} 1.4s infinite ease-in-out`,
+                  animationDelay: `${i * 0.16}s`,
+                }}
+              />
+            ))}
+          </Box>
         )}
       </Box>
     </Fade>

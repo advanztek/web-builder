@@ -1,6 +1,3 @@
-// ============================================
-// PropertiesPanel.jsx - COMPLETE FIX
-// ============================================
 import React, { useEffect } from 'react';
 import { Box, Typography, IconButton, Collapse } from '@mui/material';
 import { ChevronLeft, ChevronRight } from '@mui/icons-material';
@@ -8,7 +5,6 @@ import { customScrollbarStyles } from '../ProjectUtils';
 
 const PropertiesPanel = ({ collapsed, onToggle }) => {
   useEffect(() => {
-    // Add comprehensive styling for GrapesJS panels
     const style = document.createElement('style');
     style.id = 'gjs-properties-styles';
     style.innerHTML = `
